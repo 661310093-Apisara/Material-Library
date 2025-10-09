@@ -21,16 +21,15 @@ class MaterialPropDialog(QtWidgets.QDialog):
         self.setWindowTitle(title)
         self.setModal(True)
         self.resize(360, 240)
-
-        self.data = initial.copy() if initial else {"name": "", "color": "#777777", "icon": ""}
+        base = {"name": "", "color": "#777777", "icon": "", "assets": []}
+        if initial: base.update(initial)
+        self.data = base
 
         main = QtWidgets.QVBoxLayout(self)
-
         form = QtWidgets.QFormLayout()
         self.name_le = QtWidgets.QLineEdit(self.data["name"])
         form.addRow("Name:", self.name_le)
 
-        # color picker
         color_row = QtWidgets.QHBoxLayout()
         self.color_le = QtWidgets.QLineEdit(self.data["color"])
         self.color_btn = QtWidgets.QPushButton("Pick Color")
@@ -38,7 +37,6 @@ class MaterialPropDialog(QtWidgets.QDialog):
         color_row.addWidget(self.color_btn)
         form.addRow("Color:", color_row)
 
-        # icon picker
         icon_row = QtWidgets.QHBoxLayout()
         self.icon_le = QtWidgets.QLineEdit(self.data.get("icon", ""))
         self.icon_btn = QtWidgets.QPushButton("Browse…")
@@ -48,7 +46,6 @@ class MaterialPropDialog(QtWidgets.QDialog):
 
         main.addLayout(form)
 
-        # preview
         self.preview = QtWidgets.QLabel()
         self.preview.setFixedSize(96, 96)
         self.preview.setAlignment(QtCore.Qt.AlignCenter)
@@ -56,20 +53,16 @@ class MaterialPropDialog(QtWidgets.QDialog):
         main.addWidget(self.preview, 0, QtCore.Qt.AlignLeft)
         self._update_preview()
 
-        # buttons
         btns = QtWidgets.QHBoxLayout()
-        self.ok_btn = QtWidgets.QPushButton("OK")
-        self.cancel_btn = QtWidgets.QPushButton("Cancel")
-        btns.addStretch()
-        btns.addWidget(self.ok_btn)
-        btns.addWidget(self.cancel_btn)
+        ok_btn = QtWidgets.QPushButton("OK")
+        cancel_btn = QtWidgets.QPushButton("Cancel")
+        btns.addStretch(); btns.addWidget(ok_btn); btns.addWidget(cancel_btn)
         main.addLayout(btns)
 
-        # signals
         self.color_btn.clicked.connect(self.pick_color)
         self.icon_btn.clicked.connect(self.browse_icon)
-        self.ok_btn.clicked.connect(self.accept)
-        self.cancel_btn.clicked.connect(self.reject)
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn.clicked.connect(self.reject)
         self.name_le.textChanged.connect(lambda _: self._update_preview())
         self.color_le.textChanged.connect(lambda _: self._update_preview())
         self.icon_le.textChanged.connect(lambda _: self._update_preview())
@@ -77,32 +70,22 @@ class MaterialPropDialog(QtWidgets.QDialog):
     def pick_color(self):
         c = QtWidgets.QColorDialog.getColor(QtGui.QColor(self.color_le.text() or "#777777"), self, "Pick Color")
         if c.isValid():
-            self.color_le.setText(c.name())
-            self._update_preview()
+            self.color_le.setText(c.name()); self._update_preview()
 
     def browse_icon(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Choose Icon", ICON_PATH, "Images (*.png *.jpg *.jpeg *.bmp)")
         if path:
-            self.icon_le.setText(path)
-            self._update_preview()
+            self.icon_le.setText(path); self._update_preview()
 
     def _update_preview(self):
         icon_path = self.icon_le.text().strip()
         if icon_path and os.path.isfile(icon_path):
             pm = QtGui.QPixmap(icon_path).scaled(self.preview.size(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-            canvas = QtGui.QPixmap(self.preview.size())
-            canvas.fill(QtCore.Qt.transparent)
-            painter = QtGui.QPainter(canvas)
-            x = (canvas.width() - pm.width()) // 2
-            y = (canvas.height() - pm.height()) // 2
-            painter.drawPixmap(x, y, pm)
-            painter.end()
-            self.preview.setPixmap(canvas)
-            return
-
+            canvas = QtGui.QPixmap(self.preview.size()); canvas.fill(QtCore.Qt.transparent)
+            p = QtGui.QPainter(canvas); x=(canvas.width()-pm.width())//2; y=(canvas.height()-pm.height())//2
+            p.drawPixmap(x, y, pm); p.end(); self.preview.setPixmap(canvas); return
         col = QtGui.QColor(self.color_le.text() or "#777777")
-        pm = QtGui.QPixmap(self.preview.size())
-        pm.fill(col if col.isValid() else QtGui.QColor("#777777"))
+        pm = QtGui.QPixmap(self.preview.size()); pm.fill(col if col.isValid() else QtGui.QColor("#777777"))
         self.preview.setPixmap(pm)
 
     def get_data(self):
@@ -110,161 +93,237 @@ class MaterialPropDialog(QtWidgets.QDialog):
             "name": self.name_le.text().strip(),
             "color": self.color_le.text().strip() or "#777777",
             "icon": self.icon_le.text().strip(),
+            "assets": list(self.data.get("assets", [])),
         }
 
 
-# ---------------- Main Dialog: Material Library (UI-only) ----------------
+# ---------------- Material Card (one item in the scroll area) ----------------
+class MaterialCard(QtWidgets.QFrame):
+    nameEditedLive = QtCore.Signal(object, str)   # (mat_ref, text)
+    nameCommitted  = QtCore.Signal(object, str)   # (mat_ref, text)
+    requestEdit    = QtCore.Signal(object)        # (mat_ref)
+
+    def __init__(self, mat_ref: dict, parent=None):
+        super().__init__(parent)
+        self.mat = mat_ref
+        self.mat.setdefault("assets", [])  # ensure exists
+
+        self.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.setStyleSheet("QFrame{border:1px solid #505050; border-radius:8px;}")
+        main = QtWidgets.QVBoxLayout(self); main.setContentsMargins(10,10,10,10); main.setSpacing(8)
+
+        # --- top: preview + name ---
+        top = QtWidgets.QHBoxLayout(); main.addLayout(top)
+        self.preview = QtWidgets.QLabel()
+        self.preview.setFixedSize(180,150)
+        self.preview.setAlignment(QtCore.Qt.AlignCenter)
+        self.preview.setStyleSheet("background:#2e2e2e;color:#eee;border:1px solid #555;")
+        top.addWidget(self.preview, 0)
+
+        right = QtWidgets.QVBoxLayout(); top.addLayout(right, 1)
+        name_row = QtWidgets.QHBoxLayout()
+        name_row.addWidget(QtWidgets.QLabel("Name :"))
+        self.name_le = QtWidgets.QLineEdit(self.mat["name"])
+        name_row.addWidget(self.name_le, 1)
+        right.addLayout(name_row)
+
+        btn_row = QtWidgets.QHBoxLayout()
+        self.btn_edit = QtWidgets.QPushButton("Edit Material (UI)")
+        btn_row.addWidget(self.btn_edit)
+        btn_row.addStretch(1)
+        right.addLayout(btn_row)
+
+        main.addWidget(self._hline())
+
+        # --- Asset Used: vertical list (scroll up/down) ---
+        header = QtWidgets.QHBoxLayout()
+        lbl = QtWidgets.QLabel("Asset Used")
+        lbl.setStyleSheet("font-weight:600;")
+        header.addWidget(lbl)
+        header.addStretch()
+        self.btn_add_asset = QtWidgets.QToolButton(); self.btn_add_asset.setText("Add…")
+        self.btn_del_asset = QtWidgets.QToolButton(); self.btn_del_asset.setText("Remove")
+        header.addWidget(self.btn_add_asset); header.addWidget(self.btn_del_asset)
+        main.addLayout(header)
+
+        self.asset_list = QtWidgets.QListWidget()
+        self.asset_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.asset_list.setEditTriggers(QtWidgets.QAbstractItemView.DoubleClicked | QtWidgets.QAbstractItemView.SelectedClicked)
+        self.asset_list.setMinimumHeight(120)
+        main.addWidget(self.asset_list, 1)
+
+        main.addWidget(self._hline())
+
+        # signals
+        self.btn_edit.clicked.connect(lambda: self.requestEdit.emit(self.mat))
+        self.name_le.textEdited.connect(lambda t: self.nameEditedLive.emit(self.mat, t))
+        self.name_le.editingFinished.connect(lambda: self.nameCommitted.emit(self.mat, self.name_le.text().strip()))
+        self.btn_add_asset.clicked.connect(self._add_asset)
+        self.btn_del_asset.clicked.connect(self._remove_asset)
+        self.asset_list.itemChanged.connect(self._asset_renamed)
+
+        self._refresh_preview()
+        self._populate_assets()
+
+    def _hline(self):
+        line = QtWidgets.QFrame(); line.setFrameShape(QtWidgets.QFrame.HLine); line.setFrameShadow(QtWidgets.QFrame.Sunken); return line
+
+    def _material_icon(self):
+        icon_path = self.mat.get("icon") or ""
+        if icon_path and os.path.isfile(icon_path):
+            return QtGui.QIcon(icon_path)
+        pm = QtGui.QPixmap(96, 96)
+        col = QtGui.QColor(self.mat.get("color") or "#777777")
+        pm.fill(col if col.isValid() else QtGui.QColor("#777777"))
+        return QtGui.QIcon(pm)
+
+    def _refresh_preview(self):
+        icon = self._material_icon()
+        pm = icon.pixmap(self.preview.size())
+        canvas = QtGui.QPixmap(self.preview.size()); canvas.fill(QtCore.Qt.transparent)
+        p = QtGui.QPainter(canvas); x=(canvas.width()-pm.width())//2; y=(canvas.height()-pm.height())//2
+        p.drawPixmap(x, y, pm); p.end()
+        self.preview.setPixmap(canvas)
+
+    def _populate_assets(self):
+        self.asset_list.blockSignals(True)
+        self.asset_list.clear()
+        for name in self.mat.get("assets", []):
+            it = QtWidgets.QListWidgetItem(name)
+            it.setFlags(it.flags() | QtCore.Qt.ItemIsEditable)
+            self.asset_list.addItem(it)
+        self.asset_list.blockSignals(False)
+
+    def _add_asset(self):
+        text, ok = QtWidgets.QInputDialog.getText(self, "Add Asset", "Asset name:")
+        if not ok or not text.strip():
+            return
+        name = text.strip()
+        self.mat.setdefault("assets", []).append(name)
+        it = QtWidgets.QListWidgetItem(name)
+        it.setFlags(it.flags() | QtCore.Qt.ItemIsEditable)
+        self.asset_list.addItem(it)
+        self.asset_list.scrollToItem(it)
+
+    def _remove_asset(self):
+        sel = self.asset_list.selectedItems()
+        if not sel: return
+        names = [i.text() for i in sel]
+        self.mat["assets"] = [n for n in self.mat.get("assets", []) if n not in names]
+        for it in sel:
+            row = self.asset_list.row(it)
+            self.asset_list.takeItem(row)
+
+    def _asset_renamed(self, item: QtWidgets.QListWidgetItem):
+        # sync rename back to data
+        names = []
+        for i in range(self.asset_list.count()):
+            names.append(self.asset_list.item(i).text())
+        self.mat["assets"] = names
+
+    # expose helpers for outer dialog
+    def set_name(self, new_name: str):
+        self.name_le.blockSignals(True); self.name_le.setText(new_name); self.name_le.blockSignals(False)
+
+    def refresh(self):
+        self._refresh_preview()
+        self._populate_assets()
+
+
+# ---------------- Main Dialog (scrollable cards) ----------------
 class MaterialLibraryDialog(QtWidgets.QDialog):
-    # item kinds
     KIND_ROLE   = QtCore.Qt.UserRole
     KIND_ROOT   = "root"
     KIND_FOLDER = "folder"
     KIND_MAT    = "material"
+    MAT_ID_ROLE = QtCore.Qt.UserRole + 1
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
         self.setWindowTitle("🎨 Material Library (UI Only)")
-        self.resize(1080, 640)
+        self.resize(1120, 660)
 
-        # {'Folder 1': [ {'name': 'Mat A', 'color':'#aabbcc', 'icon':'...'}, ... ], ...}
         self.lib_data = {}
-        # running numbers (never decrease)
         self.folder_counter   = 1
         self.material_counter = 1
 
-        # pointers/state for live rename
-        self._current_folder_name = None
-        self._current_mat_ref     = None
-        self._last_valid_name     = ""
+        self.current_folder = None
+        self._tree_index = {}   # id(mat) -> QTreeWidgetItem
+        self._card_index = {}   # id(mat) -> MaterialCard
 
-        # layout + splitter
-        self.main_layout = QtWidgets.QVBoxLayout(self)
-        self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-        self.main_layout.addWidget(self.splitter)
+        # ----- left: tree & controls -----
+        left = QtWidgets.QWidget(); left_l = QtWidgets.QVBoxLayout(left)
+        self.tree = QtWidgets.QTreeWidget(); self.tree.setHeaderHidden(True); self.tree.setIndentation(16)
+        left_l.addWidget(self.tree)
 
-        # ------------- left: tree -------------
-        self.left_widget = QtWidgets.QWidget()
-        self.left_layout = QtWidgets.QVBoxLayout(self.left_widget)
-
-        self.tree = QtWidgets.QTreeWidget()
-        self.tree.setHeaderHidden(True)
-        self.tree.setIndentation(16)
-        self.left_layout.addWidget(self.tree)
-
-        left_btns = QtWidgets.QHBoxLayout()
+        lb = QtWidgets.QHBoxLayout()
         self.btn_create_folder   = QtWidgets.QPushButton("Create Folder")
         self.btn_create_material = QtWidgets.QPushButton("Create Material")
         self.btn_add_material    = QtWidgets.QPushButton("Add Material…")
-        left_btns.addWidget(self.btn_create_folder)
-        left_btns.addWidget(self.btn_create_material)
-        left_btns.addWidget(self.btn_add_material)
-        self.left_layout.addLayout(left_btns)
-        self.splitter.addWidget(self.left_widget)
+        self.btn_delete          = QtWidgets.QPushButton("Delete")
+        lb.addWidget(self.btn_create_folder); lb.addWidget(self.btn_create_material); lb.addWidget(self.btn_add_material); lb.addWidget(self.btn_delete)
+        left_l.addLayout(lb)
 
-        # ------------- right: detail + scroll list -------------
-        self.right_widget = QtWidgets.QWidget()
-        self.right_layout = QtWidgets.QVBoxLayout(self.right_widget)
+        # ----- right: scrollable material cards -----
+        right = QtWidgets.QWidget(); right_l = QtWidgets.QVBoxLayout(right)
+        right_l.addWidget(QtWidgets.QLabel("Materials Detail"))
+        self.scroll = QtWidgets.QScrollArea(); self.scroll.setWidgetResizable(True)
+        self.cards_container = QtWidgets.QWidget()
+        self.cards_layout = QtWidgets.QVBoxLayout(self.cards_container); self.cards_layout.setSpacing(12)
+        self.cards_layout.addStretch()
+        self.scroll.setWidget(self.cards_container)
+        right_l.addWidget(self.scroll, 1)
 
-        # Name / Preview / Buttons (detail of selected material)
-        form = QtWidgets.QFormLayout()
-        self.mat_name_le = QtWidgets.QLineEdit()
-        form.addRow("Name :", self.mat_name_le)
-        self.right_layout.addLayout(form)
+        # bottom-right: Save
+        right_l.addWidget(self._hline())
+        btm = QtWidgets.QHBoxLayout() 
+        self.btn_save = QtWidgets.QPushButton("Save")
+        btm.addStretch(); btm.addWidget(self.btn_save)
+        right_l.addLayout(btm)
 
-        upper = QtWidgets.QHBoxLayout()
-        self.preview = QtWidgets.QLabel("Material\nPreview")
-        self.preview.setAlignment(QtCore.Qt.AlignCenter)
-        self.preview.setFixedSize(220, 180)
-        self.preview.setStyleSheet("background:#2e2e2e;color:#eee;border:1px solid #555;")
-        upper.addWidget(self.preview)
-
-        btns = QtWidgets.QVBoxLayout()
-        self.btn_edit = QtWidgets.QPushButton("Edit Material (UI)")
-        self.btn_select_obj = QtWidgets.QPushButton("Select Obj from this Material")
-        self.btn_link = QtWidgets.QPushButton("Link Material")
-        # Scene-related disabled in UI-only mode
-        self.btn_select_obj.setEnabled(False)
-        self.btn_link.setEnabled(False)
-        btns.addWidget(self.btn_edit)
-        btns.addWidget(self.btn_select_obj)
-        btns.addWidget(self.btn_link)
-        btns.addStretch()
-        upper.addLayout(btns)
-        self.right_layout.addLayout(upper)
-
-        # ---- NEW: Scrollable list of materials in selected folder ----
-        self.right_layout.addWidget(self._hline())
-        list_title = QtWidgets.QLabel("Materials in Folder")
-        list_title.setStyleSheet("font-weight:600;")
-        self.right_layout.addWidget(list_title)
-
-        self.matlist = QtWidgets.QListWidget()
-        self.matlist.setIconSize(QtCore.QSize(64, 64))
-        self.matlist.setSpacing(6)
-        self.matlist.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        self.matlist.setUniformItemSizes(True)  # smooth scroll
-        # ใช้ขยายพื้นที่เองเพื่อให้เกิดสกรอลล์อัตโนมัติเมื่อรายการยาว
-        self.right_layout.addWidget(self.matlist, 1)
-
-        # bottom
-        self.right_layout.addWidget(self._hline())
-        bottom = QtWidgets.QHBoxLayout()
-        self.btn_delete = QtWidgets.QPushButton("Delete")
-        self.btn_save   = QtWidgets.QPushButton("Save")
-        bottom.addStretch()
-        bottom.addWidget(self.btn_delete)
-        bottom.addWidget(self.btn_save)
-        self.right_layout.addLayout(bottom)
-
-        self.splitter.addWidget(self.right_widget)
+        self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        self.splitter.addWidget(left); self.splitter.addWidget(right)
         self.splitter.setStretchFactor(1, 2)
+
+        main = QtWidgets.QVBoxLayout(self); main.addWidget(self.splitter)
 
         # signals
         self.btn_create_folder.clicked.connect(self.on_create_folder)
         self.btn_create_material.clicked.connect(self.on_create_material)
         self.btn_add_material.clicked.connect(self.on_add_material)
+        self.btn_delete.clicked.connect(self.on_delete)
         self.tree.itemClicked.connect(self.on_tree_clicked)
         self.tree.itemDoubleClicked.connect(self.on_tree_rename)
-        self.btn_edit.clicked.connect(self.on_edit_material_ui)
-        self.btn_delete.clicked.connect(self.on_delete)
         self.btn_save.clicked.connect(self.on_save)
 
-        # LIVE RENAME (Name field)
-        self.mat_name_le.textEdited.connect(self.on_name_edited_live)
-        self.mat_name_le.editingFinished.connect(self.on_name_commit)
-
-        # List interactions
-        self.matlist.currentItemChanged.connect(self.on_matlist_item_changed)
-        self.matlist.itemDoubleClicked.connect(self.on_matlist_item_double_clicked)
-
-        # load existing
+        # load & build
         self._try_load()
         if not os.path.isfile(SAVE_JSON):
             self._refresh_tree()
-            self.folder_counter   = 1
-            self.material_counter = 1
 
     # ---------- helpers ----------
     def _hline(self):
-        line = QtWidgets.QFrame()
-        line.setFrameShape(QtWidgets.QFrame.HLine)
-        line.setFrameShadow(QtWidgets.QFrame.Sunken)
-        return line
+        line = QtWidgets.QFrame(); line.setFrameShape(QtWidgets.QFrame.HLine); line.setFrameShadow(QtWidgets.QFrame.Sunken); return line
 
-    def _item_kind(self, item):
-        return item.data(0, self.KIND_ROLE) if item else None
+    def _material_icon(self, m: dict):
+        icon_path = m.get("icon") or ""
+        if icon_path and os.path.isfile(icon_path): return QtGui.QIcon(icon_path)
+        pm = QtGui.QPixmap(48, 48); col = QtGui.QColor(m.get("color") or "#777777")
+        pm.fill(col if col.isValid() else QtGui.QColor("#777777")); return QtGui.QIcon(pm)
 
-    def _material_icon(self, mat_dict):
-        icon_path = mat_dict.get("icon") or ""
-        if icon_path and os.path.isfile(icon_path):
-            return QtGui.QIcon(icon_path)
-        pm = QtGui.QPixmap(48, 48)
-        col = QtGui.QColor(mat_dict.get("color") or "#777777")
-        pm.fill(col if col.isValid() else QtGui.QColor("#777777"))
-        return QtGui.QIcon(pm)
+    def _unique_name(self, mats_list, desired, exclude=None):
+        names = {id(x): x["name"] for x in mats_list}
+        existing = set(names.values()) - ({exclude["name"]} if exclude else set())
+        if desired not in existing: return desired
+        i = 2
+        while True:
+            cand = f"{desired} ({i})"
+            if cand not in existing: return cand
+            i += 1
 
+    # ---------- tree build ----------
     def _refresh_tree(self):
+        self._tree_index.clear()
         self.tree.clear()
         root = QtWidgets.QTreeWidgetItem(["All Material"])
         root.setData(0, self.KIND_ROLE, self.KIND_ROOT)
@@ -278,430 +337,158 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             for m in mats:
                 c_item = QtWidgets.QTreeWidgetItem([m["name"]])
                 c_item.setData(0, self.KIND_ROLE, self.KIND_MAT)
+                c_item.setData(0, self.MAT_ID_ROLE, id(m))
                 c_item.setIcon(0, self._material_icon(m))
                 f_item.addChild(c_item)
+                self._tree_index[id(m)] = c_item
 
         self.tree.expandAll()
 
-    def _populate_matlist(self, folder_name):
-        """เติมรายการวัสดุของโฟลเดอร์ลง QListWidget (scroll ได้)"""
-        self.matlist.blockSignals(True)
-        self.matlist.clear()
+    def _rebuild_cards_for_folder(self, folder_name):
+        self.current_folder = folder_name
+        while self.cards_layout.count():
+            it = self.cards_layout.takeAt(0)
+            w = it.widget()
+            if w: w.deleteLater()
+        self._card_index.clear()
+
         for m in self.lib_data.get(folder_name, []):
-            it = QtWidgets.QListWidgetItem(self._material_icon(m), m["name"])
-            it.setData(self.KIND_ROLE, m)  # เก็บ ref dict
-            self.matlist.addItem(it)
-        self.matlist.blockSignals(False)
+            card = MaterialCard(m, self.cards_container)
+            card.nameEditedLive.connect(self._card_name_live)
+            card.nameCommitted.connect(self._card_name_commit)
+            card.requestEdit.connect(self._card_edit_dialog)
+            self.cards_layout.addWidget(card)
+            self._card_index[id(m)] = card
 
-    def _select_tree_item_by_name(self, folder_name, mat_name):
-        """เลือกไอเท็มใน Tree ให้ตรงกับโฟลเดอร์/วัสดุ"""
-        root = self.tree.topLevelItem(0)
-        if not root:
-            return
-        # หาโฟลเดอร์
-        folder_item = None
-        for i in range(root.childCount()):
-            c = root.child(i)
-            if c.text(0) == folder_name:
-                folder_item = c
-                break
-        if not folder_item:
-            return
-        # หากชื่อวัสดุ -> เลือกวัสดุ, ถ้าไม่มีก็เลือกโฟลเดอร์
-        if mat_name:
-            for j in range(folder_item.childCount()):
-                cc = folder_item.child(j)
-                if cc.text(0) == mat_name:
-                    self.tree.setCurrentItem(cc)
-                    return
-        self.tree.setCurrentItem(folder_item)
+        self.cards_layout.addStretch()
 
-    def _set_material_preview(self, mat_dict):
-        self.mat_name_le.setText(mat_dict["name"])
-        icon = self._material_icon(mat_dict)
-        pm = icon.pixmap(self.preview.size())
-        if pm.isNull():
-            self.preview.setText(f"Material\n{mat_dict['name']}")
-            self.preview.setPixmap(QtGui.QPixmap())
-        else:
-            canvas = QtGui.QPixmap(self.preview.size())
-            canvas.fill(QtCore.Qt.transparent)
-            p = QtGui.QPainter(canvas)
-            x = (canvas.width() - pm.width()) // 2
-            y = (canvas.height() - pm.height()) // 2
-            p.drawPixmap(x, y, pm)
-            p.end()
-            self.preview.setPixmap(canvas)
+    # ---------- card callbacks ----------
+    def _card_name_live(self, mat_ref, text):
+        mat_ref["name"] = text
+        item = self._tree_index.get(id(mat_ref))
+        if item: item.setText(0, text)
 
-    def _unique_name(self, mats_list, desired):
-        names = {m["name"] for m in mats_list}
-        if desired not in names:
-            return desired
-        i = 2
-        while True:
-            cand = f"{desired} ({i})"
-            if cand not in names:
-                return cand
-            i += 1
+    def _card_name_commit(self, mat_ref, text):
+        mats = self.lib_data.get(self.current_folder, [])
+        new = self._unique_name(mats, text or mat_ref["name"] or "Material", exclude=mat_ref)
+        if new != text:
+            card = self._card_index.get(id(mat_ref))
+            if card: card.set_name(new)
+        mat_ref["name"] = new
+        item = self._tree_index.get(id(mat_ref))
+        if item: item.setText(0, new)
 
-    def _get_mat_ref(self, folder_name, mat_name):
-        mats = self.lib_data.get(folder_name, [])
-        for m in mats:
-            if m["name"] == mat_name:
-                return m
-        return None
-
-    def _recalc_folder_counter(self):
-        max_n = 0
-        for name in self.lib_data.keys():
-            m = re.match(r'^Folder\s+(\d+)$', name)
-            if m:
-                max_n = max(max_n, int(m.group(1)))
-        self.folder_counter = max(max_n + 1, self.folder_counter, 1)
-
-    def _recalc_material_counter(self):
-        max_n = 0
-        for mats in self.lib_data.values():
-            for m in mats:
-                mm = re.match(r'^Material\s+(\d+)$', m["name"])
-                if mm:
-                    max_n = max(max_n, int(mm.group(1)))
-        self.material_counter = max(max_n + 1, self.material_counter, 1)
-
-    def _bump_counter_from_name(self, name):
-        mf = re.match(r'^Folder\s+(\d+)$', name)
-        if mf:
-            n = int(mf.group(1)) + 1
-            if n > self.folder_counter:
-                self.folder_counter = n
-        mm = re.match(r'^Material\s+(\d+)$', name)
-        if mm:
-            n = int(mm.group(1)) + 1
-            if n > self.material_counter:
-                self.material_counter = n
+    def _card_edit_dialog(self, mat_ref):
+        dlg = MaterialPropDialog(self, initial=mat_ref, title="Edit Material")
+        if dlg.exec_() != QtWidgets.QDialog.Accepted: return
+        data = dlg.get_data()
+        mats = self.lib_data.get(self.current_folder, [])
+        data["name"] = self._unique_name(mats, data["name"] or "Material", exclude=mat_ref)
+        mat_ref.update(data)
+        item = self._tree_index.get(id(mat_ref))
+        if item:
+            item.setText(0, mat_ref["name"])
+            item.setIcon(0, self._material_icon(mat_ref))
+        card = self._card_index.get(id(mat_ref))
+        if card:
+            card.set_name(mat_ref["name"])
+            card.refresh()
 
     # ---------- actions ----------
     def on_create_folder(self):
         name = f"Folder {self.folder_counter}"
         while name in self.lib_data:
-            self.folder_counter += 1
-            name = f"Folder {self.folder_counter}"
-        self.lib_data[name] = []
-        self.folder_counter += 1
+            self.folder_counter += 1; name = f"Folder {self.folder_counter}"
+        self.lib_data[name] = []; self.folder_counter += 1
         self._refresh_tree()
 
     def on_create_material(self):
         item = self.tree.currentItem()
-        kind = self._item_kind(item)
-        if kind == self.KIND_MAT:
-            folder_item = item.parent()
-        elif kind == self.KIND_FOLDER:
-            folder_item = item
-        else:
-            QtWidgets.QMessageBox.warning(self, "Create Material", "Select a folder first.")
-            return
-
-        folder = folder_item.text(0)
-
-        base_name = f"Material {self.material_counter}"
-        name = self._unique_name(self.lib_data.setdefault(folder, []), base_name)
-        mat = {"name": name, "color": "#777777", "icon": ""}
-        self.lib_data[folder].append(mat)
-        self.material_counter += 1
-
+        if not item: QtWidgets.QMessageBox.warning(self, "Create Material", "Select a folder first."); return
+        kind = item.data(0, self.KIND_ROLE)
+        folder = item.text(0) if kind == self.KIND_FOLDER else (item.parent().text(0) if kind == self.KIND_MAT else None)
+        if not folder: QtWidgets.QMessageBox.warning(self, "Create Material", "Select a folder first."); return
+        base = f"Material {self.material_counter}"
+        name = self._unique_name(self.lib_data.setdefault(folder, []), base)
+        mat = {"name": name, "color": "#777777", "icon": "", "assets": []}
+        self.lib_data[folder].append(mat); self.material_counter += 1
         self._refresh_tree()
-        # อัปเดตลิสต์ฝั่งขวาถ้าเลือกโฟลเดอร์นี้อยู่
-        self._populate_matlist(folder)
-        # เลือกวัสดุที่สร้างใหม่ทั้งในลิสต์และใน tree
-        matches = self.matlist.findItems(name, QtCore.Qt.MatchExactly)
-        if matches:
-            self.matlist.setCurrentItem(matches[0])
-        self._select_tree_item_by_name(folder, name)
-
-        # ตั้ง state live-rename
-        self._current_folder_name = folder
-        self._current_mat_ref = mat
-        self._last_valid_name = mat["name"]
-        self._set_material_preview(mat)
+        self._rebuild_cards_for_folder(folder)
+        card = self._card_index.get(id(mat))
+        if card: self.scroll.ensureWidgetVisible(card)
 
     def on_add_material(self):
         item = self.tree.currentItem()
-        kind = self._item_kind(item)
-
-        if kind == self.KIND_MAT:
-            folder_item = item.parent()
-        elif kind == self.KIND_FOLDER:
-            folder_item = item
-        else:
-            QtWidgets.QMessageBox.warning(self, "Add Material", "Select a folder first.")
-            return
-
-        folder = folder_item.text(0)
+        if not item: QtWidgets.QMessageBox.warning(self, "Add Material", "Select a folder first."); return
+        kind = item.data(0, self.KIND_ROLE)
+        folder = item.text(0) if kind == self.KIND_FOLDER else (item.parent().text(0) if kind == self.KIND_MAT else None)
+        if not folder: QtWidgets.QMessageBox.warning(self, "Add Material", "Select a folder first."); return
 
         dlg = MaterialPropDialog(self, title="Add Material")
-        if dlg.exec_() != QtWidgets.QDialog.Accepted:
-            return
+        if dlg.exec_() != QtWidgets.QDialog.Accepted: return
         data = dlg.get_data()
-        if not data["name"]:
-            QtWidgets.QMessageBox.warning(self, "Add Material", "Please enter a name.")
-            return
-
-        data["name"] = self._unique_name(self.lib_data.setdefault(folder, []), data["name"])
+        data["name"] = self._unique_name(self.lib_data.setdefault(folder, []), data["name"] or "Material")
+        data.setdefault("assets", [])
         self.lib_data[folder].append(data)
-        self._bump_counter_from_name(data["name"])
-
         self._refresh_tree()
-        self._populate_matlist(folder)
-        matches = self.matlist.findItems(data["name"], QtCore.Qt.MatchExactly)
-        if matches:
-            self.matlist.setCurrentItem(matches[0])
-        self._select_tree_item_by_name(folder, data["name"])
-
-        self._current_folder_name = folder
-        self._current_mat_ref = data
-        self._last_valid_name = data["name"]
-        self._set_material_preview(data)
+        self._rebuild_cards_for_folder(folder)
+        card = self._card_index.get(id(data))
+        if card: self.scroll.ensureWidgetVisible(card)
 
     def on_tree_clicked(self, item, _col):
-        kind = self._item_kind(item)
+        kind = item.data(0, self.KIND_ROLE)
         if kind == self.KIND_FOLDER:
-            folder = item.text(0)
-            self._populate_matlist(folder)
-            # reset detail
-            self._current_folder_name = folder
-            self._current_mat_ref = None
-            self._last_valid_name = ""
-            self.mat_name_le.clear()
-            self.preview.setText("Material\nPreview")
-            self.preview.setPixmap(QtGui.QPixmap())
-            return
-
-        if kind == self.KIND_MAT:
+            self._rebuild_cards_for_folder(item.text(0))
+        elif kind == self.KIND_MAT:
             folder = item.parent().text(0)
-            self._populate_matlist(folder)  # ให้ลิสต์ฝั่งขวาตามโฟลเดอร์นี้
-            meta = self._get_mat_ref(folder, item.text(0))
-            self._current_folder_name = folder
-            self._current_mat_ref = meta
-            self._last_valid_name = meta["name"] if meta else ""
-            # sync เลือกในลิสต์
-            matches = self.matlist.findItems(item.text(0), QtCore.Qt.MatchExactly)
-            if matches:
-                self.matlist.blockSignals(True)
-                self.matlist.setCurrentItem(matches[0])
-                self.matlist.blockSignals(False)
-            if meta:
-                self._set_material_preview(meta)
-            return
-
-        # root
-        self._populate_matlist("")  # ว่าง
-        self._current_folder_name = None
-        self._current_mat_ref = None
-        self._last_valid_name = ""
-        self.mat_name_le.clear()
-        self.preview.setText("Material\nPreview")
-        self.preview.setPixmap(QtGui.QPixmap())
+            self._rebuild_cards_for_folder(folder)
+            mat_id = item.data(0, self.MAT_ID_ROLE)
+            card = self._card_index.get(mat_id)
+            if card: self.scroll.ensureWidgetVisible(card)
 
     def on_tree_rename(self, item, _col):
-        kind = self._item_kind(item)
-        if kind == self.KIND_ROOT:
-            return
-
+        kind = item.data(0, self.KIND_ROLE)
+        if kind == self.KIND_ROOT: return
         old = item.text(0)
         new, ok = QtWidgets.QInputDialog.getText(self, "Rename", "New name:", text=old)
-        if not ok or not new or new == old:
-            return
+        if not ok or not new or new == old: return
 
-        if kind == self.KIND_MAT:
+        if kind == self.KIND_FOLDER:
+            if new in self.lib_data:
+                QtWidgets.QMessageBox.warning(self, "Rename", "Folder already exists."); return
+            self.lib_data[new] = self.lib_data.pop(old)
+            self._refresh_tree(); self._rebuild_cards_for_folder(new)
+        else:
             folder = item.parent().text(0)
             mats = self.lib_data.get(folder, [])
-            new = self._unique_name(mats, new)
-            ref = self._get_mat_ref(folder, old)
-            if ref:
-                ref["name"] = new
-                self._bump_counter_from_name(new)
-            self._refresh_tree()
-            # อัปเดตลิสต์และซิงก์ selection
-            self._populate_matlist(folder)
-            matches = self.matlist.findItems(new, QtCore.Qt.MatchExactly)
-            if matches:
-                self.matlist.setCurrentItem(matches[0])
-            self._select_tree_item_by_name(folder, new)
-            # อัปเดตรายละเอียด
-            if ref:
-                self._current_folder_name = folder
-                self._current_mat_ref = ref
-                self._last_valid_name = ref["name"]
-                self._set_material_preview(ref)
-
-        elif kind == self.KIND_FOLDER:
-            if new in self.lib_data:
-                QtWidgets.QMessageBox.warning(self, "Rename", "Folder already exists.")
-                return
-            self.lib_data[new] = self.lib_data.pop(old)
-            self._bump_counter_from_name(new)
-            self._refresh_tree()
-            self._populate_matlist(new)
-            self._select_tree_item_by_name(new, None)
-            # reset detail
-            self._current_folder_name = new
-            self._current_mat_ref = None
-            self._last_valid_name = ""
-            self.mat_name_le.clear()
-            self.preview.setText("Material\nPreview")
-            self.preview.setPixmap(QtGui.QPixmap())
-
-    def on_edit_material_ui(self):
-        # เปิดกล่องแก้ไขจาก selection ปัจจุบัน (จากลิสต์หรือ tree ก็ได้)
-        item = self.tree.currentItem()
-        if self._item_kind(item) != self.KIND_MAT:
-            QtWidgets.QMessageBox.information(self, "Edit Material", "Select a material first.")
-            return
-        folder = item.parent().text(0)
-        ref = self._get_mat_ref(folder, item.text(0))
-        if not ref:
-            return
-
-        dlg = MaterialPropDialog(self, initial=ref, title="Edit Material")
-        if dlg.exec_() != QtWidgets.QDialog.Accepted:
-            return
-        data = dlg.get_data()
-        if not data["name"]:
-            QtWidgets.QMessageBox.warning(self, "Edit Material", "Please enter a name.")
-            return
-
-        data["name"] = self._unique_name([m for m in self.lib_data[folder] if m is not ref], data["name"])
-        ref.update(data)
-        self._bump_counter_from_name(data["name"])
-
-        self._refresh_tree()
-        self._populate_matlist(folder)
-        # sync select
-        matches = self.matlist.findItems(data["name"], QtCore.Qt.MatchExactly)
-        if matches:
-            self.matlist.setCurrentItem(matches[0])
-        self._select_tree_item_by_name(folder, data["name"])
-
-        self._current_folder_name = folder
-        self._current_mat_ref = ref
-        self._last_valid_name = ref["name"]
-        self._set_material_preview(ref)
-
-    # ====== LIVE RENAME from Name field ======
-    def on_name_edited_live(self, text):
-        if not self._current_mat_ref:
-            return
-        # update memory
-        self._current_mat_ref["name"] = text
-        # update tree current item
-        titem = self.tree.currentItem()
-        if titem and self._item_kind(titem) == self.KIND_MAT:
-            titem.setText(0, text)
-        # update list current item
-        litem = self.matlist.currentItem()
-        if litem:
-            litem.setText(text)
-        # (ไม่อัปเดต preview เพื่อไม่ให้ caret เด้ง)
-
-    def on_name_commit(self):
-        if not self._current_mat_ref:
-            return
-        text = self.mat_name_le.text().strip()
-        if not text:
-            text = self._last_valid_name
-            self.mat_name_le.setText(text)
-
-        mats = self.lib_data.get(self._current_folder_name, [])
-        other_names = {m["name"] for m in mats if m is not self._current_mat_ref}
-        if text in other_names:
-            text = self._unique_name([m for m in mats if m is not self._current_mat_ref], text)
-
-        self._current_mat_ref["name"] = text
-        self._last_valid_name = text
-        self._bump_counter_from_name(text)
-
-        # sync UI: tree + list + preview
-        titem = self.tree.currentItem()
-        if titem and self._item_kind(titem) == self.KIND_MAT:
-            titem.setText(0, text)
-        litem = self.matlist.currentItem()
-        if litem:
-            litem.setText(text)
-
-        icon = self._material_icon(self._current_mat_ref)
-        pm = icon.pixmap(self.preview.size())
-        if pm.isNull():
-            self.preview.setText(f"Material\n{text}")
-            self.preview.setPixmap(QtGui.QPixmap())
-        else:
-            canvas = QtGui.QPixmap(self.preview.size())
-            canvas.fill(QtCore.Qt.transparent)
-            p = QtGui.QPainter(canvas)
-            x = (canvas.width() - pm.width()) // 2
-            y = (canvas.height() - pm.height()) // 2
-            p.drawPixmap(x, y, pm)
-            p.end()
-            self.preview.setPixmap(canvas)
-
-    # ====== List interactions ======
-    def on_matlist_item_changed(self, cur, prev):
-        """เลือกวัสดุจากลิสต์ -> ซิงก์ไป Tree + แสดงรายละเอียด"""
-        if not cur:
-            return
-        # หาโฟลเดอร์ปัจจุบันจาก selection ฝั่งซ้าย
-        titem = self.tree.currentItem()
-        folder = None
-        if titem:
-            kind = self._item_kind(titem)
-            folder = titem.text(0) if kind == self.KIND_FOLDER else (titem.parent().text(0) if kind == self.KIND_MAT else None)
-        if not folder:
-            return
-        name = cur.text()
-        self._select_tree_item_by_name(folder, name)
-        ref = self._get_mat_ref(folder, name)
-        self._current_folder_name = folder
-        self._current_mat_ref = ref
-        self._last_valid_name = ref["name"] if ref else ""
-        if ref:
-            self._set_material_preview(ref)
-
-    def on_matlist_item_double_clicked(self, item):
-        """ดับเบิลคลิกที่รายการ -> เปิด Edit dialog"""
-        self.on_edit_material_ui()
+            mat_id = item.data(0, self.MAT_ID_ROLE)
+            ref = next((m for m in mats if id(m) == mat_id), None)
+            if not ref: return
+            new = self._unique_name(mats, new, exclude=ref)
+            ref["name"] = new
+            item.setText(0, new)
+            card = self._card_index.get(mat_id)
+            if card: card.set_name(new)
 
     def on_delete(self):
         item = self.tree.currentItem()
-        if not item:
-            return
+        if not item: return
+        kind = item.data(0, self.KIND_ROLE)
 
-        kind = self._item_kind(item)
-
-        if kind == self.KIND_MAT:
-            folder = item.parent().text(0)
-            mats = self.lib_data.get(folder, [])
-            self.lib_data[folder] = [m for m in mats if m["name"] != item.text(0)]
-            item.parent().removeChild(item)
-            # อัปเดตลิสต์ฝั่งขวา
-            self._populate_matlist(folder)
-
-        elif kind == self.KIND_FOLDER:
+        if kind == self.KIND_FOLDER:
             name = item.text(0)
             self.lib_data.pop(name, None)
-            item.parent().removeChild(item)  # parent is root
-            # ถ้าลบโฟลเดอร์ที่แสดงอยู่ -> เคลียร์ลิสต์
-            self.matlist.clear()
-
-        elif kind == self.KIND_ROOT:
+            item.parent().removeChild(item)
+            self._rebuild_cards_for_folder("")  # clear right
+        elif kind == self.KIND_MAT:
+            folder = item.parent().text(0)
+            mat_id = item.data(0, self.MAT_ID_ROLE)
+            mats = self.lib_data.get(folder, [])
+            self.lib_data[folder] = [m for m in mats if id(m) != mat_id]
+            item.parent().removeChild(item)
+            self._rebuild_cards_for_folder(folder)
+        else:
             QtWidgets.QMessageBox.information(self, "Delete", "Root cannot be deleted.")
-            return
-
-        # reset live-rename state
-        self._current_folder_name = None
-        self._current_mat_ref = None
-        self._last_valid_name = ""
-        self.mat_name_le.clear()
-        self.preview.setText("Material\nPreview")
-        self.preview.setPixmap(QtGui.QPixmap())
 
     def on_save(self):
         try:
@@ -711,16 +498,29 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, "Save failed", str(e))
 
+    # ---------- persistence ----------
     def _try_load(self):
-        if not os.path.isfile(SAVE_JSON):
-            return
+        if not os.path.isfile(SAVE_JSON): return
         try:
             with open(SAVE_JSON, "r", encoding="utf-8") as f:
                 self.lib_data = json.load(f)
+            # migrate old records (no 'assets')
+            for mats in self.lib_data.values():
+                for m in mats:
+                    m.setdefault("assets", [])
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, "Load failed", str(e))
-        self._recalc_folder_counter()
-        self._recalc_material_counter()
+        # counters
+        max_f = 0; max_m = 0
+        for name in self.lib_data.keys():
+            mf = re.match(r'^Folder\s+(\d+)$', name)
+            if mf: max_f = max(max_f, int(mf.group(1)))
+        for mats in self.lib_data.values():
+            for m in mats:
+                mm = re.match(r'^Material\s+(\d+)$', m.get("name",""))
+                if mm: max_m = max(max_m, int(mm.group(1)))
+        self.folder_counter   = max(1, max_f+1)
+        self.material_counter = max(1, max_m+1)
         self._refresh_tree()
 
 
@@ -731,7 +531,6 @@ def run():
         ui.close()
     except Exception:
         pass
-
     ptr = wrapInstance(int(omui.MQtUtil.mainWindow()), QtWidgets.QWidget)
     ui = MaterialLibraryDialog(parent=ptr)
     ui.show()
