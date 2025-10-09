@@ -14,7 +14,7 @@ ICON_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'icons'))
 SAVE_JSON = os.path.abspath(os.path.join(os.path.dirname(__file__), 'material_library.json'))
 
 
-# ---------------- Dialog: Add/Edit Material (UI-only) ----------------
+# ---------------- Dialog: Add/Edit Material ----------------
 class MaterialPropDialog(QtWidgets.QDialog):
     def __init__(self, parent=None, initial=None, title="Add Material"):
         super().__init__(parent)
@@ -99,14 +99,14 @@ class MaterialPropDialog(QtWidgets.QDialog):
 
 # ---------------- Material Card (one item in the scroll area) ----------------
 class MaterialCard(QtWidgets.QFrame):
-    nameEditedLive = QtCore.Signal(object, str)   # (mat_ref, text)
-    nameCommitted  = QtCore.Signal(object, str)   # (mat_ref, text)
-    requestEdit    = QtCore.Signal(object)        # (mat_ref)
+    nameEditedLive = QtCore.Signal(object, str)   
+    nameCommitted  = QtCore.Signal(object, str)   
+    requestEdit    = QtCore.Signal(object)        
 
     def __init__(self, mat_ref: dict, parent=None):
         super().__init__(parent)
         self.mat = mat_ref
-        self.mat.setdefault("assets", [])  # ensure exists
+        self.mat.setdefault("assets", [])  
 
         self.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.setStyleSheet("QFrame{border:1px solid #505050; border-radius:8px;}")
@@ -221,7 +221,7 @@ class MaterialCard(QtWidgets.QFrame):
             names.append(self.asset_list.item(i).text())
         self.mat["assets"] = names
 
-    # expose helpers for outer dialog
+    
     def set_name(self, new_name: str):
         self.name_le.blockSignals(True); self.name_le.setText(new_name); self.name_le.blockSignals(False)
 
@@ -240,7 +240,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("🎨 Material Library (UI Only)")
+        self.setWindowTitle("🎨 Material Library ")
         self.resize(1120, 660)
 
         self.lib_data = {}
@@ -248,8 +248,8 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         self.material_counter = 1
 
         self.current_folder = None
-        self._tree_index = {}   # id(mat) -> QTreeWidgetItem
-        self._card_index = {}   # id(mat) -> MaterialCard
+        self._tree_index = {}   
+        self._card_index = {}   
 
         # ----- left: tree & controls -----
         left = QtWidgets.QWidget(); left_l = QtWidgets.QVBoxLayout(left)
@@ -363,6 +363,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         self.cards_layout.addStretch()
 
     # ---------- card callbacks ----------
+
     def _card_name_live(self, mat_ref, text):
         mat_ref["name"] = text
         item = self._tree_index.get(id(mat_ref))
@@ -395,6 +396,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             card.refresh()
 
     # ---------- actions ----------
+
     def on_create_folder(self):
         name = f"Folder {self.folder_counter}"
         while name in self.lib_data:
@@ -479,7 +481,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             name = item.text(0)
             self.lib_data.pop(name, None)
             item.parent().removeChild(item)
-            self._rebuild_cards_for_folder("")  # clear right
+            self._rebuild_cards_for_folder("")  
         elif kind == self.KIND_MAT:
             folder = item.parent().text(0)
             mat_id = item.data(0, self.MAT_ID_ROLE)
@@ -504,13 +506,13 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         try:
             with open(SAVE_JSON, "r", encoding="utf-8") as f:
                 self.lib_data = json.load(f)
-            # migrate old records (no 'assets')
+            
             for mats in self.lib_data.values():
                 for m in mats:
                     m.setdefault("assets", [])
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, "Load failed", str(e))
-        # counters
+       
         max_f = 0; max_m = 0
         for name in self.lib_data.keys():
             mf = re.match(r'^Folder\s+(\d+)$', name)
