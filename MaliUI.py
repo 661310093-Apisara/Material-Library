@@ -33,6 +33,33 @@ TREE_ICON_SIZE  = QtCore.QSize(28, 28)
 PREVIEW_W       = 150
 PREVIEW_H       = 150
 
+# ===== Rounded buttons theme (for all buttons in this dialog) =====
+ROUNDED_BTN_CSS = """
+QPushButton, QToolButton {
+    border: 1px solid #5b5b5b;
+    border-radius: 5px;        /* ขอบมน */
+    padding: 6px 12px;
+    background: #3a3a3a;
+    color: #e6e6e6;
+}
+QPushButton:default {
+    border: 1px solid #6fa7ff;
+    background: #415a77;
+    font-weight: 600;
+}
+QPushButton:hover, QToolButton:hover {
+    background: #474747;
+}
+QPushButton:pressed, QToolButton:pressed {
+    background: #323232;
+}
+QPushButton:disabled, QToolButton:disabled {
+    color: #888888;
+    border-color: #444444;
+    background: #2f2f2f;
+}
+"""
+
 # ================================
 # JSON path policy (per-scene)
 # ================================
@@ -68,7 +95,7 @@ def _qicon_from_b64(b64str: str) -> QtGui.QIcon:
 # Dialog: Add Material (ชื่อ read-only)
 # =========================
 class MaterialPropDialog(QtWidgets.QDialog):
-    """Add Material: ชื่ออ่านอย่างเดียว / รูปอยู่กึ่งกลาง / ปุ่ม Add Image อยู่ซ้ายในแถวเดียวกับ OK/Cancel"""
+    """Add Material: ชื่ออ่านอย่างเดียว / รูปอยู่กึ่งกลาง / ปุ่ม Add Image ซ้ายแถวเดียว OK/Cancel"""
     def __init__(self, parent=None, initial=None, title="Add Material"):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -129,6 +156,9 @@ class MaterialPropDialog(QtWidgets.QDialog):
         ok_btn.clicked.connect(self.accept)
         cancel_btn.clicked.connect(self.reject)
 
+        # ใช้ธีมปุ่มขอบมนกับทั้งไดอะล็อก
+        self.setStyleSheet(ROUNDED_BTN_CSS)
+
     def _pick_image(self):
         b64 = ""
         if hasattr(mu, "pick_image_to_base64"):
@@ -162,7 +192,6 @@ class MaterialCard(QtWidgets.QFrame):
         self.mat.setdefault("assets", [])
 
         self.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        self.setStyleSheet("QFrame{border:1px solid #505050; border-radius:8px;}")
 
         main = QtWidgets.QVBoxLayout(self)
         main.setContentsMargins(12,12,12,12); main.setSpacing(10)
@@ -181,8 +210,7 @@ class MaterialCard(QtWidgets.QFrame):
         right = QtWidgets.QVBoxLayout()
         name_row = QtWidgets.QHBoxLayout()
         name_lbl = QtWidgets.QLabel("Name :")
-        # ไม่ให้ QLabel โดนโฟกัส (จะได้ไม่มีกรอบขาวไปวงที่ "Asset Used")
-        name_lbl.setFocusPolicy(QtCore.Qt.NoFocus)
+        name_lbl.setFocusPolicy(QtCore.Qt.NoFocus)  # กันกรอบโฟกัส
         self.name_le = QtWidgets.QLineEdit(self.mat.get("name",""))
         name_row.addWidget(name_lbl)
         name_row.addWidget(self.name_le, 1)
@@ -191,7 +219,7 @@ class MaterialCard(QtWidgets.QFrame):
         row1 = QtWidgets.QHBoxLayout()
         self.btn_edit = QtWidgets.QPushButton("Edit Material")
         self.btn_link = QtWidgets.QPushButton("Link Material")
-        for b in (self.btn_edit, self.btn_link): 
+        for b in (self.btn_edit, self.btn_link):
             b.setMinimumHeight(28)
         row1.addWidget(self.btn_edit); row1.addWidget(self.btn_link)
         right.addLayout(row1)
@@ -199,7 +227,7 @@ class MaterialCard(QtWidgets.QFrame):
         row2 = QtWidgets.QHBoxLayout()
         self.btn_addimg = QtWidgets.QPushButton("Edit Image")
         self.btn_select = QtWidgets.QPushButton("Select All")
-        for b in (self.btn_addimg, self.btn_select): 
+        for b in (self.btn_addimg, self.btn_select):
             b.setMinimumHeight(28)
         row2.addWidget(self.btn_addimg); row2.addWidget(self.btn_select)
         right.addLayout(row2)
@@ -211,13 +239,11 @@ class MaterialCard(QtWidgets.QFrame):
         header = QtWidgets.QHBoxLayout()
         lbl = QtWidgets.QLabel("Asset Used")
         lbl.setStyleSheet("font-weight:600;")
-        # ป้องกันโฟกัสมาที่ label
         lbl.setFocusPolicy(QtCore.Qt.NoFocus)
         header.addWidget(lbl)
         header.addStretch(1)
         self.btn_asset_del = QtWidgets.QToolButton()
         self.btn_asset_del.setText("Remove")
-        # ให้ปุ่มนี้รับโฟกัส เพื่อกรอบขาวไปอยู่ที่ปุ่ม Remove
         self.btn_asset_del.setFocusPolicy(QtCore.Qt.StrongFocus)
         header.addWidget(self.btn_asset_del)
         main.addLayout(header)
@@ -398,8 +424,8 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         # bottom buttons
         hb = QtWidgets.QHBoxLayout()
         self.btn_refresh = QtWidgets.QPushButton("Refresh")
-        self.btn_import  = QtWidgets.QPushButton("Import…")
-        self.btn_saveas  = QtWidgets.QPushButton("Save As…")
+        self.btn_import  = QtWidgets.QPushButton("Import")
+        self.btn_saveas  = QtWidgets.QPushButton("Save As")
         self.btn_save    = QtWidgets.QPushButton("Save")
         hb.addStretch(1)
         hb.addWidget(self.btn_refresh)
@@ -443,6 +469,9 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
 
         # select root by default
         QtCore.QTimer.singleShot(0, self._apply_initial_sizes)
+
+        # ใช้ธีมปุ่มขอบมนกับทั้งหน้าต่างหลัก
+        self.setStyleSheet(ROUNDED_BTN_CSS)
 
     # ---------------- binding helpers ----------------
     def _get_bound_json_path(self):
@@ -1030,3 +1059,4 @@ def run():
     ptr = wrapInstance(int(omui.MQtUtil.mainWindow()), QtWidgets.QWidget)
     ui = MaterialLibraryDialog(parent=ptr)
     ui.show()
+

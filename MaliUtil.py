@@ -151,29 +151,65 @@ def qicon_from_b64(b64str):
         return QtGui.QIcon()
 
 class ImagePreview(QtWidgets.QLabel):
-    def __init__(self, w=200, h=160, parent=None):
+    """พรีวิวภาพ 'มุมโค้ง' พร้อมกรอบ วาดเองทั้งหมด"""
+    def __init__(self, w=200, h=160, parent=None, radius=90):
         super().__init__(parent)
         self.setMinimumSize(w, h)
         self.setAlignment(QtCore.Qt.AlignCenter)
-        self.setStyleSheet("background:#2b2b2b;border:1px solid #555;color:#aaa;")
+        self.setStyleSheet("background: transparent;")  # เราจะวาด background เอง
         self._b64 = ""
+        self._pm  = QtGui.QPixmap()
+        self._radius = int(radius)
+        self._bg_col = QtGui.QColor("#2b2b2b")
+        self._border_col = QtGui.QColor("#555555")
+
     def set_image_b64(self, b64str):
         self._b64 = b64str or ""
-        if not self._b64:
-            self.setText("No Preview"); return
-        try:
-            ba = QtCore.QByteArray.fromBase64(QtCore.QByteArray(self._b64.encode("utf-8")))
-            pm = QtGui.QPixmap(); pm.loadFromData(ba)
-            if not pm.isNull():
-                self.setPixmap(pm.scaled(self.size(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
-            else:
-                self.setText("No Preview")
-        except Exception:
-            self.setText("No Preview")
+        self._pm = QtGui.QPixmap()
+        if self._b64:
+            try:
+                ba = QtCore.QByteArray.fromBase64(QtCore.QByteArray(self._b64.encode("utf-8")))
+                self._pm.loadFromData(ba)
+            except Exception:
+                pass
+        self.update()
+
+    def paintEvent(self, e):
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        rect = self.rect().adjusted(1, 1, -1, -1)
+
+        # สร้าง path มุมโค้ง
+        path = QtGui.QPainterPath()
+        r = float(self._radius)
+        path.addRoundedRect(QtCore.QRectF(rect), r, r)
+
+        # พื้นหลัง
+        p.fillPath(path, self._bg_col)
+
+        # วาดรูป (clip ให้เป็นมุมโค้ง)
+        if not self._pm.isNull():
+            p.save()
+            p.setClipPath(path)
+            scaled = self._pm.scaled(rect.size(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+            x = rect.x() + (rect.width()  - scaled.width())  * 0.5
+            y = rect.y() + (rect.height() - scaled.height()) * 0.5
+            p.drawPixmap(int(x), int(y), scaled)
+            p.restore()
+        else:
+            p.setPen(QtGui.QPen(QtGui.QColor("#aaaaaa")))
+            p.drawText(rect, QtCore.Qt.AlignCenter, "No Preview")
+
+        # เส้นขอบ
+        pen = QtGui.QPen(self._border_col)
+        pen.setWidth(1)
+        p.setPen(pen)
+        p.drawPath(path)
+        p.end()
+
     def resizeEvent(self, e):
         super().resizeEvent(e)
-        if self.pixmap() and not self.pixmap().isNull():
-            self.setPixmap(self.pixmap().scaled(self.size(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
+        self.update()
 
 def pick_image_to_base64(parent=None):
     filters = "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)"
@@ -205,7 +241,7 @@ def _all_upstream_nodes(mat):
         if n in seen: continue
         seen.add(n)
         try:
-            if cmds.objectType(n, isAType="dagNode"):  # skip DAG nodes
+            if cmds.objectType(n, isAType="dagNode"):
                 continue
         except Exception:
             pass
@@ -225,8 +261,10 @@ def _node_attrs_dump(node):
         except Exception:
             continue
         payload = {"name": a, "value": _safe_list(val), "type": None}
-        try: payload["type"] = cmds.getAttr(plug, type=True)
-        except Exception: pass
+        try:
+            payload["type"] = cmds.getAttr(plug, type=True)
+        except Exception:
+            pass
         if payload["type"] in ("double3","float3") and isinstance(payload["value"], list):
             if len(payload["value"])==1 and isinstance(payload["value"][0], (list,tuple)):
                 payload["value"] = list(payload["value"][0])
