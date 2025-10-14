@@ -26,11 +26,11 @@ except Exception:
 # ================================
 # Constants / sizing
 # ================================
-DEFAULT_SIZE    = QtCore.QSize(980, 740)
-LEFT_PANEL_W    = 270
-TREE_ICON_SIZE  = QtCore.QSize(28, 28)
-PREVIEW_W       = 220
-PREVIEW_H       = 220
+DEFAULT_SIZE    = QtCore.QSize(720, 600)
+LEFT_PANEL_W    = 50
+TREE_ICON_SIZE  = QtCore.QSize(15, 15)
+PREVIEW_W       = 150
+PREVIEW_H       = 150
 
 # ================================
 # JSON path policy (per-scene)
@@ -287,7 +287,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         self.setWindowTitle("🎨 Material Library")
         self.setWindowModality(QtCore.Qt.NonModal)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
-        self.resize(DEFAULT_SIZE); self.setMinimumSize(860, 700)
+        self.resize(DEFAULT_SIZE); self.setMinimumSize(300, 300)
 
         self.lib_data = {}               # { folder: [ {name, thumb_b64, assets, graph?}, ... ] }
         self.folder_counter = 1
