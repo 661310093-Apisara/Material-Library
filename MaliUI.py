@@ -17,7 +17,8 @@ except Exception:
 
 # -- import MaliUtil ทั้งแบบแพ็กเกจและแบบสคริปต์เดี่ยว --
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
-if THIS_DIR not in sys.path: sys.path.insert(0, THIS_DIR)
+if THIS_DIR not in sys.path:
+    sys.path.insert(0, THIS_DIR)
 try:
     from . import MaliUtil as mu   # type: ignore
 except Exception:
@@ -26,9 +27,9 @@ except Exception:
 # ================================
 # Constants / sizing
 # ================================
-DEFAULT_SIZE    = QtCore.QSize(720, 600)
-LEFT_PANEL_W    = 50
-TREE_ICON_SIZE  = QtCore.QSize(15, 15)
+DEFAULT_SIZE    = QtCore.QSize(750, 500)
+LEFT_PANEL_W    = 100
+TREE_ICON_SIZE  = QtCore.QSize(28, 28)
 PREVIEW_W       = 150
 PREVIEW_H       = 150
 
@@ -49,75 +50,101 @@ def _scene_json_path():
 # ---- fallback icon ----
 def _qicon_from_b64(b64str: str) -> QtGui.QIcon:
     if hasattr(mu, "qicon_from_b64"):
-        try: return mu.qicon_from_b64(b64str)
-        except Exception: pass
-    if not b64str: return QtGui.QIcon()
+        try:
+            return mu.qicon_from_b64(b64str)
+        except Exception:
+            pass
+    if not b64str:
+        return QtGui.QIcon()
     try:
         ba = QtCore.QByteArray.fromBase64(QtCore.QByteArray(b64str.encode('utf-8')))
-        pm = QtGui.QPixmap(); pm.loadFromData(ba)
+        pm = QtGui.QPixmap()
+        pm.loadFromData(ba)
         return QtGui.QIcon(pm) if not pm.isNull() else QtGui.QIcon()
     except Exception:
         return QtGui.QIcon()
 
 # =========================
-# Dialog: Add Material
+# Dialog: Add Material (ชื่อ read-only)
 # =========================
 class MaterialPropDialog(QtWidgets.QDialog):
-    """ชื่อเป็น read-only (ดึงจาก selection ใน Hypershade เท่านั้น)"""
+    """Add Material: ชื่ออ่านอย่างเดียว / รูปอยู่กึ่งกลาง / ปุ่ม Add Image อยู่ซ้ายในแถวเดียวกับ OK/Cancel"""
     def __init__(self, parent=None, initial=None, title="Add Material"):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setModal(True)
-        self.resize(420, 300)
+        self.resize(250, 250)
 
         base = {"name": "", "thumb_b64": "", "assets": []}
-        if initial: base.update(initial)
+        if initial:
+            base.update(initial)
         else:
             if hasattr(mu, "get_selected_material_name"):
-                guess = mu.get_selected_material_name() or ""
-                base["name"] = guess
+                base["name"] = mu.get_selected_material_name() or ""
         self.data = base
 
+        # ====== Layout ======
         main = QtWidgets.QVBoxLayout(self)
+        main.setContentsMargins(6, 6, 6, 6)
+        main.setSpacing(6)
+
+        # ชื่อ (อ่านอย่างเดียว)
         form = QtWidgets.QFormLayout()
-        self.name_le = QtWidgets.QLineEdit(self.data.get("name",""))
+        self.name_le = QtWidgets.QLineEdit(self.data.get("name", ""))
         self.name_le.setReadOnly(True)
         self.name_le.setToolTip("Select a material in Hypershade. Name is not editable here.")
-        form.addRow("Name:", self.name_le); main.addLayout(form)
+        form.addRow("Name:", self.name_le)
+        main.addLayout(form)
 
-        img_row = QtWidgets.QHBoxLayout()
+        # พรีวิวรูป — จัดกึ่งกลางแนวนอน
         if hasattr(mu, "ImagePreview"):
-            self.preview = mu.ImagePreview(200, 180, self)
-            self.preview.set_image_b64(self.data.get("thumb_b64",""))
+            self.preview = mu.ImagePreview(200, 200, self)
+            self.preview.set_image_b64(self.data.get("thumb_b64", ""))
         else:
             self.preview = QtWidgets.QLabel("No Preview")
-            self.preview.setMinimumSize(200,180)
+            self.preview.setMinimumSize(200, 200)
             self.preview.setAlignment(QtCore.Qt.AlignCenter)
             self.preview.setStyleSheet("background:#2b2b2b;border:1px solid #555;color:#aaa;")
-        img_row.addWidget(self.preview, 0)
-        pick_btn = QtWidgets.QPushButton("Add Image"); img_row.addWidget(pick_btn, 1)
-        main.addLayout(img_row)
 
-        btns = QtWidgets.QHBoxLayout(); btns.addStretch(1)
-        ok_btn, cancel_btn = QtWidgets.QPushButton("OK"), QtWidgets.QPushButton("Cancel")
-        btns.addWidget(ok_btn); btns.addWidget(cancel_btn); main.addLayout(btns)
+        center_row = QtWidgets.QHBoxLayout()
+        center_row.addStretch(1)
+        center_row.addWidget(self.preview, 0)
+        center_row.addStretch(1)
+        main.addLayout(center_row)
 
-        pick_btn.clicked.connect(self._pick_image)
-        ok_btn.clicked.connect(self.accept); cancel_btn.clicked.connect(self.reject)
+        # แถวล่าง: Add Image (ซ้าย) | OK / Cancel (ขวา)
+        btns = QtWidgets.QHBoxLayout()
+        self.btn_addimg = QtWidgets.QPushButton("Add Image")
+        btns.addWidget(self.btn_addimg)
+        btns.addStretch(1)
+        ok_btn     = QtWidgets.QPushButton("OK")
+        cancel_btn = QtWidgets.QPushButton("Cancel")
+        ok_btn.setDefault(True)
+        btns.addWidget(ok_btn)
+        btns.addWidget(cancel_btn)
+        main.addLayout(btns)
+
+        # ====== Signals ======
+        self.btn_addimg.clicked.connect(self._pick_image)
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn.clicked.connect(self.reject)
 
     def _pick_image(self):
         b64 = ""
         if hasattr(mu, "pick_image_to_base64"):
             b64, _ = mu.pick_image_to_base64(self)
-        if not b64: return
+        if not b64:
+            return
         self.data["thumb_b64"] = b64
-        if hasattr(self.preview, "set_image_b64"): self.preview.set_image_b64(b64)
+        if hasattr(self.preview, "set_image_b64"):
+            self.preview.set_image_b64(b64)
 
     def get_data(self):
-        return {"name": self.name_le.text().strip(),
-                "thumb_b64": self.data.get("thumb_b64",""),
-                "assets": []}  # ไม่พก assets จาก dialog
-
+        return {
+            "name": self.name_le.text().strip(),
+            "thumb_b64": self.data.get("thumb_b64", ""),
+            "assets": list(self.data.get("assets", [])),
+        }
 
 # =================
 # Material Card
@@ -153,21 +180,27 @@ class MaterialCard(QtWidgets.QFrame):
 
         right = QtWidgets.QVBoxLayout()
         name_row = QtWidgets.QHBoxLayout()
-        name_row.addWidget(QtWidgets.QLabel("Name :"))
+        name_lbl = QtWidgets.QLabel("Name :")
+        # ไม่ให้ QLabel โดนโฟกัส (จะได้ไม่มีกรอบขาวไปวงที่ "Asset Used")
+        name_lbl.setFocusPolicy(QtCore.Qt.NoFocus)
         self.name_le = QtWidgets.QLineEdit(self.mat.get("name",""))
-        name_row.addWidget(self.name_le, 1); right.addLayout(name_row)
+        name_row.addWidget(name_lbl)
+        name_row.addWidget(self.name_le, 1)
+        right.addLayout(name_row)
 
         row1 = QtWidgets.QHBoxLayout()
         self.btn_edit = QtWidgets.QPushButton("Edit Material")
         self.btn_link = QtWidgets.QPushButton("Link Material")
-        for b in (self.btn_edit, self.btn_link): b.setMinimumHeight(28)
+        for b in (self.btn_edit, self.btn_link): 
+            b.setMinimumHeight(28)
         row1.addWidget(self.btn_edit); row1.addWidget(self.btn_link)
         right.addLayout(row1)
 
         row2 = QtWidgets.QHBoxLayout()
         self.btn_addimg = QtWidgets.QPushButton("Edit Image")
         self.btn_select = QtWidgets.QPushButton("Select All")
-        for b in (self.btn_addimg, self.btn_select): b.setMinimumHeight(28)
+        for b in (self.btn_addimg, self.btn_select): 
+            b.setMinimumHeight(28)
         row2.addWidget(self.btn_addimg); row2.addWidget(self.btn_select)
         right.addLayout(row2)
 
@@ -176,9 +209,16 @@ class MaterialCard(QtWidgets.QFrame):
         main.addWidget(self._hline())
 
         header = QtWidgets.QHBoxLayout()
-        lbl = QtWidgets.QLabel("Asset Used"); lbl.setStyleSheet("font-weight:600;")
-        header.addWidget(lbl); header.addStretch(1)
-        self.btn_asset_del = QtWidgets.QToolButton(); self.btn_asset_del.setText("Remove")
+        lbl = QtWidgets.QLabel("Asset Used")
+        lbl.setStyleSheet("font-weight:600;")
+        # ป้องกันโฟกัสมาที่ label
+        lbl.setFocusPolicy(QtCore.Qt.NoFocus)
+        header.addWidget(lbl)
+        header.addStretch(1)
+        self.btn_asset_del = QtWidgets.QToolButton()
+        self.btn_asset_del.setText("Remove")
+        # ให้ปุ่มนี้รับโฟกัส เพื่อกรอบขาวไปอยู่ที่ปุ่ม Remove
+        self.btn_asset_del.setFocusPolicy(QtCore.Qt.StrongFocus)
         header.addWidget(self.btn_asset_del)
         main.addLayout(header)
 
@@ -201,65 +241,87 @@ class MaterialCard(QtWidgets.QFrame):
         self._populate_assets()
 
     def _hline(self):
-        l = QtWidgets.QFrame(); l.setFrameShape(QtWidgets.QFrame.HLine); l.setFrameShadow(QtWidgets.QFrame.Sunken); return l
+        l = QtWidgets.QFrame()
+        l.setFrameShape(QtWidgets.QFrame.HLine)
+        l.setFrameShadow(QtWidgets.QFrame.Sunken)
+        return l
 
     def _populate_assets(self):
-        self.asset_list.blockSignals(True); self.asset_list.clear()
+        self.asset_list.blockSignals(True)
+        self.asset_list.clear()
         for name in self.mat.get("assets", []):
             self.asset_list.addItem(QtWidgets.QListWidgetItem(name))
         self.asset_list.blockSignals(False)
 
     def _pick_image(self):
         b64 = ""
-        if hasattr(mu, "pick_image_to_base64"): b64, _ = mu.pick_image_to_base64(self)
-        if not b64: return
+        if hasattr(mu, "pick_image_to_base64"):
+            b64, _ = mu.pick_image_to_base64(self)
+        if not b64:
+            return
         self.mat["thumb_b64"] = b64
-        if hasattr(self.preview, "set_image_b64"): self.preview.set_image_b64(b64)
+        if hasattr(self.preview, "set_image_b64"):
+            self.preview.set_image_b64(b64)
 
     def _asset_del(self):
         sel = self.asset_list.selectedItems()
-        if not sel: return
+        if not sel:
+            return
         names = [i.text() for i in sel]
         self._unassign_from_scene(names)
-        # อัปเดตการ์ดชั่วคราว (ตัวจริงจะถูก rescan จากด้านนอก)
         self.mat["assets"] = [n for n in self.mat.get("assets", []) if n not in set(names)]
         self._populate_assets()
 
     def _unassign_from_scene(self, names):
-        if not cmds: return
+        if not cmds:
+            return
         mat_name = self.mat.get("name","")
-        if not mat_name: return
+        if not mat_name:
+            return
         sg = mu.get_shading_engine(mat_name)
-        if not sg: return
+        if not sg:
+            return
         shapes = []
         for n in names:
-            if not cmds.objExists(n): continue
+            if not cmds.objExists(n):
+                continue
             if cmds.nodeType(n) == "transform":
                 shapes += cmds.listRelatives(n, s=True, ni=True, pa=True) or []
             else:
                 shapes.append(n)
         shapes = list(dict.fromkeys(shapes))
-        if not shapes: return
+        if not shapes:
+            return
         try:
             for s in shapes:
-                try: cmds.sets(s, rm=sg)
-                except Exception: pass
-            try: cmds.sets(shapes, e=True, forceElement="initialShadingGroup")
+                try:
+                    cmds.sets(s, rm=sg)
+                except Exception:
+                    pass
+            try:
+                cmds.sets(shapes, e=True, forceElement="initialShadingGroup")
             except Exception:
                 try:
                     cur = cmds.ls(sl=True)
-                    cmds.select(shapes, r=True); cmds.hyperShade(assign="lambert1")
-                    if cur: cmds.select(cur, r=True)
-                except Exception: pass
-        except Exception: pass
+                    cmds.select(shapes, r=True)
+                    cmds.hyperShade(assign="lambert1")
+                    if cur:
+                        cmds.select(cur, r=True)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def _select_assets(self):
-        if not cmds: return
+        if not cmds:
+            return
         names = [self.asset_list.item(i).text()
                  for i in range(self.asset_list.count())
                  if self.asset_list.item(i).isSelected()]
-        try: cmds.select(names if names else [], r=True)
-        except Exception: pass
+        try:
+            cmds.select(names if names else [], r=True)
+        except Exception:
+            pass
 
     def set_name(self, new_name):
         self.name_le.blockSignals(True)
@@ -271,7 +333,6 @@ class MaterialCard(QtWidgets.QFrame):
             self.preview.set_image_b64(self.mat.get("thumb_b64",""))
         self._populate_assets()
 
-
 # ==============
 # Main Dialog
 # ==============
@@ -281,13 +342,15 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
     KIND_FOLDER = "folder"
     KIND_MAT    = "material"
     MAT_ID_ROLE = QtCore.Qt.UserRole + 1
+    _FILEINFO_KEY = "MLI_JSON"
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("🎨 Material Library")
         self.setWindowModality(QtCore.Qt.NonModal)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
-        self.resize(DEFAULT_SIZE); self.setMinimumSize(300, 300)
+        self.resize(DEFAULT_SIZE)
+        self.setMinimumSize(700, 500)
 
         self.lib_data = {}               # { folder: [ {name, thumb_b64, assets, graph?}, ... ] }
         self.folder_counter = 1
@@ -296,31 +359,37 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         self._sized_once = False
         self._json_path = _scene_json_path()  # None เมื่อยังไม่ได้ save scene
 
-        # cache ไว้เช็คเปลี่ยนแปลงทรัพยากรจากซีน
-        self._assets_cache = {}  # {material_name: tuple(objects)}
-
         # left
         left = QtWidgets.QWidget()
-        left_l = QtWidgets.QVBoxLayout(left); left_l.setContentsMargins(6,6,6,6)
-        self.tree = QtWidgets.QTreeWidget(); self.tree.setHeaderHidden(True)
-        self.tree.setIndentation(16); self.tree.setIconSize(TREE_ICON_SIZE)
+        left_l = QtWidgets.QVBoxLayout(left)
+        left_l.setContentsMargins(6,6,6,6)
+        self.tree = QtWidgets.QTreeWidget()
+        self.tree.setHeaderHidden(True)
+        self.tree.setIndentation(16)
+        self.tree.setIconSize(TREE_ICON_SIZE)
         left_l.addWidget(self.tree)
         lb = QtWidgets.QHBoxLayout()
         self.btn_create_folder = QtWidgets.QPushButton("Create Folder")
         self.btn_add_material  = QtWidgets.QPushButton("Add Material")
         self.btn_delete        = QtWidgets.QPushButton("Delete")
-        lb.addWidget(self.btn_create_folder); lb.addWidget(self.btn_add_material); lb.addWidget(self.btn_delete)
+        lb.addWidget(self.btn_create_folder)
+        lb.addWidget(self.btn_add_material)
+        lb.addWidget(self.btn_delete)
         left_l.addLayout(lb)
 
         # right
         right = QtWidgets.QWidget()
         right_l = QtWidgets.QVBoxLayout(right)
-        title = QtWidgets.QLabel("Materials Detail"); title.setStyleSheet("font-weight:600;")
+        title = QtWidgets.QLabel("Materials Detail")
+        title.setStyleSheet("font-weight:600;")
+        title.setFocusPolicy(QtCore.Qt.NoFocus)
         right_l.addWidget(title)
-        self.scroll = QtWidgets.QScrollArea(); self.scroll.setWidgetResizable(True)
+        self.scroll = QtWidgets.QScrollArea()
+        self.scroll.setWidgetResizable(True)
         self.cards_container = QtWidgets.QWidget()
         self.cards_layout = QtWidgets.QVBoxLayout(self.cards_container)
-        self.cards_layout.setSpacing(16); self.cards_layout.setContentsMargins(8,8,8,8)
+        self.cards_layout.setSpacing(16)
+        self.cards_layout.setContentsMargins(8,8,8,8)
         self.cards_layout.addStretch()
         self.scroll.setWidget(self.cards_container)
         right_l.addWidget(self.scroll,1)
@@ -340,9 +409,12 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         right_l.addLayout(hb)
 
         self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-        self.splitter.addWidget(left); self.splitter.addWidget(right)
-        self.splitter.setStretchFactor(0,0); self.splitter.setStretchFactor(1,1)
-        main = QtWidgets.QVBoxLayout(self); main.addWidget(self.splitter)
+        self.splitter.addWidget(left)
+        self.splitter.addWidget(right)
+        self.splitter.setStretchFactor(0,0)
+        self.splitter.setStretchFactor(1,1)
+        main = QtWidgets.QVBoxLayout(self)
+        main.addWidget(self.splitter)
 
         # signals
         self.btn_create_folder.clicked.connect(self.on_create_folder)
@@ -353,73 +425,98 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         self.btn_save.clicked.connect(self.on_save)
         self.btn_saveas.clicked.connect(self.on_save_as)
         self.btn_import.clicked.connect(self.on_import)
-        self.btn_refresh.clicked.connect(self._rescan_all_assets)
+        self.btn_refresh.clicked.connect(self.refresh_from_scene)
 
-        # build tree & load json (ถ้ามี)
+        # build tree
         self._refresh_tree()
-        self._try_load()
 
-        # สแกนซีนครั้งแรกให้ครบทุก material
-        self._rescan_all_assets()
+        # ----- scriptJobs & auto-load binding -----
+        self.setObjectName("MLI_Dialog")
+        self._scriptjobs = []
+        try:
+            self._auto_load_for_current_scene()
+            self._scriptjobs.append(cmds.scriptJob(e=["SceneOpened",     self._auto_on_scene_event], p=self.objectName()))
+            self._scriptjobs.append(cmds.scriptJob(e=["NewSceneOpened",  self._auto_on_scene_event], p=self.objectName()))
+            self._scriptjobs.append(cmds.scriptJob(e=["SceneSaved",      self._autosave_current],     p=self.objectName()))
+        except Exception:
+            pass
 
-        # โฟกัสที่ All Material + ตั้งขนาด splitter
+        # select root by default
         QtCore.QTimer.singleShot(0, self._apply_initial_sizes)
 
-        # ---- Auto-rescan timer (แก้ปัญหา duplicate แล้วไม่ขึ้นชื่อ) ----
-        self._scan_timer = QtCore.QTimer(self)
-        self._scan_timer.setInterval(800)  # ms
-        self._scan_timer.timeout.connect(self._rescan_tick)
-        self._scan_timer.start()
-
-    # ---------------- helpers (scan) ----------------
-    def _assets_from_scene(self, mat_name: str):
-        if not mat_name or not hasattr(mu, "objects_using_material"):
-            return []
+    # ---------------- binding helpers ----------------
+    def _get_bound_json_path(self):
         try:
-            objs = mu.objects_using_material(mat_name, True) or []
-            if hasattr(mu, "normalize_objects"):
-                objs = mu.normalize_objects(objs)
-            return objs
+            vals = cmds.fileInfo(self._FILEINFO_KEY, q=True) or []
+            if vals:
+                p = vals[0]
+                return p if os.path.isfile(p) else None
         except Exception:
-            return []
+            pass
+        return None
 
-    def _rescan_tick(self):
-        """เรียกบ่อย ๆ แต่จะอัปเดต UI ต่อเมื่อมีความต่างจาก cache"""
-        changed = False
-        for _folder, mats in self.lib_data.items():
-            for m in mats:
-                name = m.get("name","")
-                new_assets = tuple(self._assets_from_scene(name))
-                if self._assets_cache.get(name) != new_assets:
-                    self._assets_cache[name] = new_assets
-                    m["assets"] = list(new_assets)
-                    # อัปเดตการ์ดหากมี
-                    card = self._card_index.get(id(m))
-                    if card: card.refresh()
-                    changed = True
-        # ไม่ต้อง rebuild ทั้ง pane ทุกครั้ง ลดกระพือหน้าจอ
+    def _bind_json(self, path):
+        try:
+            if path:
+                cmds.fileInfo(self._FILEINFO_KEY, path)
+                self._json_path = path
+        except Exception:
+            pass
 
-    def _rescan_all_assets(self):
-        """แทนที่ assets ของทุก material ด้วยรายการจากซีนจริง (ไม่ merge)"""
-        for _folder, mats in self.lib_data.items():
-            for m in mats:
-                name = m.get("name","")
-                new_assets = tuple(self._assets_from_scene(name))
-                self._assets_cache[name] = new_assets
-                m["assets"] = list(new_assets)
-        # รีเฟรชการ์ดเฉพาะกลุ่มที่เปิดอยู่
-        cur = self.tree.currentItem()
-        if not cur:
-            self._rebuild_cards_for_all(); return
-        kind = cur.data(0, self.KIND_ROLE)
-        if kind == self.KIND_FOLDER:
-            self._rebuild_cards_for_folder(cur.text(0))
-        elif kind == self.KIND_MAT:
-            self._rebuild_cards_for_folder(cur.parent().text(0))
-        else:
-            self._rebuild_cards_for_all()
+    def _default_scene_side_json(self):
+        return _scene_json_path()
 
-    # helpers (misc)
+    def _load_from_path(self, path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                self.lib_data = json.load(f)
+            for mats in self.lib_data.values():
+                for m in mats:
+                    m.setdefault("assets", [])
+                    m.setdefault("thumb_b64","")
+            self._refresh_tree()
+            root = self.tree.topLevelItem(0)
+            if root:
+                self.tree.setCurrentItem(root)
+                self._rebuild_cards_for_all()
+        except Exception as e:
+            self._warn("Load failed", str(e))
+
+    def _auto_load_for_current_scene(self):
+        bound = self._get_bound_json_path()
+        if bound and os.path.isfile(bound):
+            self._json_path = bound
+            self._load_from_path(bound)
+            return
+        side = self._default_scene_side_json()
+        if side and os.path.isfile(side):
+            self._json_path = side
+            self._load_from_path(side)
+            self._bind_json(side)
+            return
+        # not found → clear
+        self.lib_data = {}
+        self._refresh_tree()
+        self._rebuild_cards([])
+
+    def _auto_on_scene_event(self, *args):
+        # scene opened/new scene → load & refresh asset usage
+        self._auto_load_for_current_scene()
+        self.refresh_from_scene()
+
+    def _autosave_current(self, *args):
+        self._gather_graphs()
+        dst = self._get_bound_json_path() or self._default_scene_side_json()
+        if not dst:
+            return
+        try:
+            with open(dst, "w", encoding="utf-8") as f:
+                json.dump(self.lib_data, f, ensure_ascii=False, indent=2)
+            self._bind_json(dst)
+        except Exception:
+            pass
+
+    # ---------------- helpers ----------------
     def _warn(self, title, msg):
         QtWidgets.QMessageBox.warning(self, title, msg)
 
@@ -427,37 +524,62 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         self.splitter.setSizes([LEFT_PANEL_W, max(300, self.width()-LEFT_PANEL_W)])
         # focus 'All Material'
         root = self.tree.topLevelItem(0)
-        if root: 
+        if root:
             self.tree.setCurrentItem(root)
             self._rebuild_cards_for_all()
 
     def _hline(self):
-        l = QtWidgets.QFrame(); l.setFrameShape(QtWidgets.QFrame.HLine); l.setFrameShadow(QtWidgets.QFrame.Sunken); return l
+        l = QtWidgets.QFrame()
+        l.setFrameShape(QtWidgets.QFrame.HLine)
+        l.setFrameShadow(QtWidgets.QFrame.Sunken)
+        return l
 
     def _material_icon(self, m: dict):
         b64 = m.get("thumb_b64","")
         if b64:
             ic = _qicon_from_b64(b64)
-            if not ic.isNull(): return ic
-        pm = QtGui.QPixmap(48,48); pm.fill(QtGui.QColor("#777"))
+            if not ic.isNull():
+                return ic
+        pm = QtGui.QPixmap(48,48)
+        pm.fill(QtGui.QColor("#777"))
         return QtGui.QIcon(pm)
+
+    def _merge_scene_assets(self, m: dict):
+        name = m.get("name","")
+        if not name or not hasattr(mu, "objects_using_material"):
+            return
+        try:
+            scene_objs = mu.objects_using_material(name, True) or []
+        except Exception:
+            scene_objs = []
+        if scene_objs:
+            merged = set(m.get("assets", []) or [])
+            merged.update(scene_objs)
+            m["assets"] = sorted(merged)
+
+    def _focus_card_by_id(self, mat_id: int):
+        """เลื่อนการ์ดให้ชิดขอบบนของ ScrollArea"""
+        card = self._card_index.get(mat_id)
+        if not card:
+            return
+        def _do():
+            y_top = card.mapTo(self.cards_container, QtCore.QPoint(0, 0)).y()
+            sb = self.scroll.verticalScrollBar()
+            TOP_PAD = 6
+            sb.setValue(max(0, y_top - TOP_PAD))
+            card.setFocus(QtCore.Qt.OtherFocusReason)
+        QtCore.QTimer.singleShot(0, _do)
 
     def showEvent(self, e):
         super().showEvent(e)
         if not self._sized_once:
-            self.resize(DEFAULT_SIZE); self._sized_once = True
-            self._rescan_all_assets()
+            self.resize(DEFAULT_SIZE)
+            self._sized_once = True
 
-    def closeEvent(self, e):
-        try:
-            self._scan_timer.stop()
-        except Exception:
-            pass
-        return super().closeEvent(e)
-
-    # ---------------- tree build ----------------
+    # tree build
     def _refresh_tree(self):
-        self._tree_index.clear(); self.tree.clear()
+        self._tree_index.clear()
+        self.tree.clear()
         root = QtWidgets.QTreeWidgetItem(["All Material"])
         root.setData(0, self.KIND_ROLE, self.KIND_ROOT)
         self.tree.addTopLevelItem(root)
@@ -489,13 +611,12 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         while self.cards_layout.count():
             it = self.cards_layout.takeAt(0)
             w = it.widget()
-            if w: w.deleteLater()
+            if w:
+                w.deleteLater()
         self._card_index.clear()
 
         for m in mats_list:
-            # บังคับดึงจากซีนทุกครั้ง
-            m["assets"] = self._assets_from_scene(m.get("name",""))
-            self._assets_cache[m.get("name","")] = tuple(m["assets"])
+            self._merge_scene_assets(m)
             card = MaterialCard(m, self.cards_container)
             card.nameEditedLive.connect(self._card_name_live)
             card.nameCommitted.connect(self._card_name_commit)
@@ -507,42 +628,57 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
 
         self.cards_layout.addStretch()
 
-    # ---------------- card callbacks ----------------
+    # card callbacks
     def _card_name_live(self, mat_ref, text):
         item = self._tree_index.get(id(mat_ref))
-        if item: item.setText(0, text)
+        if item:
+            item.setText(0, text)
 
     def _rename_strict(self, old_name: str, new_name: str) -> bool:
         if not cmds:
-            self._warn("Rename failed", "Cannot access maya.cmds"); return False
-        if not new_name or old_name == new_name: return True
+            self._warn("Rename failed", "Cannot access maya.cmds")
+            return False
+        if not new_name or old_name == new_name:
+            return True
         if not cmds.objExists(old_name):
-            self._warn("Rename failed", f"Material not found: {old_name}"); return False
+            self._warn("Rename failed", f"Material not found: {old_name}")
+            return False
         if cmds.objExists(new_name):
-            self._warn("Duplicate name", f"A node named '{new_name}' already exists."); return False
+            self._warn("Duplicate name", f"A node named '{new_name}' already exists.")
+            return False
         try:
-            cmds.rename(old_name, new_name); return True
+            cmds.rename(old_name, new_name)
+            return True
         except Exception as e:
-            self._warn("Rename failed", str(e)); return False
+            self._warn("Rename failed", str(e))
+            return False
 
     def _card_name_commit(self, mat_ref, text):
-        old = mat_ref.get("name",""); new = (text or "").strip()
+        old = mat_ref.get("name","")
+        new = (text or "").strip()
         if not new or new == old:
             item = self._tree_index.get(id(mat_ref))
-            if item: item.setText(0, old)
+            if item:
+                item.setText(0, old)
             return
         if self._rename_strict(old, new):
             mat_ref["name"] = new
             item = self._tree_index.get(id(mat_ref))
-            if item: item.setText(0, new)
+            if item:
+                item.setText(0, new)
             card = self._card_index.get(id(mat_ref))
-            if card: card.set_name(new)
-            self._rescan_all_assets()
+            if card:
+                card.set_name(new)
+            self._merge_scene_assets(mat_ref)
+            if card:
+                card.refresh()
         else:
             item = self._tree_index.get(id(mat_ref))
-            if item: item.setText(0, old)
             card = self._card_index.get(id(mat_ref))
-            if card: card.set_name(old)
+            if item:
+                item.setText(0, old)
+            if card:
+                card.set_name(old)
 
     def _card_edit_material(self, mat_ref):
         if hasattr(mu, "open_hypershade"):
@@ -550,7 +686,8 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
 
     def _card_select_objs(self, mat_ref):
         name = (mat_ref or {}).get("name","")
-        if not hasattr(mu, "select_objects_from_material"): return
+        if not hasattr(mu, "select_objects_from_material"):
+            return
         try:
             selected = mu.select_objects_from_material(name)
             if not selected:
@@ -558,27 +695,56 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         except Exception as e:
             self._warn("Select Objects", str(e))
 
+    def _remove_from_other_assets(self, objects, keep_material):
+        """เมื่อ Link ใหม่ ให้ลบชื่อ object ออกจาก material อื่นที่เคยถืออยู่"""
+        if not objects:
+            return
+        objs = set(objects)
+        for folder, mats in self.lib_data.items():
+            for m in mats:
+                if m.get("name") == keep_material:
+                    continue
+                if not m.get("assets"):
+                    continue
+                new_list = [x for x in m["assets"] if x not in objs]
+                if len(new_list) != len(m["assets"]):
+                    m["assets"] = new_list
+                    card = self._card_index.get(id(m))
+                    if card:
+                        card.refresh()
+
     def _card_link_material(self, mat_ref):
         name = (mat_ref or {}).get("name","")
-        if not hasattr(mu, "link_material_to_objects"): return
+        if not hasattr(mu, "link_material_to_objects"):
+            return
         try:
             affected = mu.link_material_to_objects(name)
         except Exception as e:
-            self._warn("Link Material", str(e)); return
+            self._warn("Link Material", str(e))
+            return
         if not affected:
             QtWidgets.QMessageBox.information(self, "Link Material", "Please select object(s) in the scene first.")
             return
-        self._rescan_all_assets()
+        self._remove_from_other_assets(affected, keep_material=name)
+        assets = set(mat_ref.setdefault("assets", []))
+        assets.update(affected)
+        mat_ref["assets"] = sorted(assets)
+        card = self._card_index.get(id(mat_ref))
+        if card:
+            card.refresh()
 
-    # ---------------- actions ----------------
+    # actions
     def on_create_folder(self):
         name = f"Folder {self.folder_counter}"
         while name in self.lib_data:
-            self.folder_counter += 1; name = f"Folder {self.folder_counter}"
-        self.lib_data[name] = []; self.folder_counter += 1
+            self.folder_counter += 1
+            name = f"Folder {self.folder_counter}"
+        self.lib_data[name] = []
+        self.folder_counter += 1
         self._refresh_tree()
 
     def on_add_material(self):
+        # ต้องเลือก material ใน Hypershade ก่อน
         sel_name = mu.get_selected_material_name() if hasattr(mu, "get_selected_material_name") else ""
         if not sel_name:
             self._warn("Add Material", "Please select a material in Hypershade first.")
@@ -586,17 +752,22 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
 
         item = self.tree.currentItem()
         if not item:
-            self._warn("Add Material", "Select a folder first."); return
+            self._warn("Add Material", "Select a folder first.")
+            return
         kind = item.data(0, self.KIND_ROLE)
         folder = item.text(0) if kind == self.KIND_FOLDER else (item.parent().text(0) if kind == self.KIND_MAT else None)
-        if kind == self.KIND_ROOT: folder = None
+        if kind == self.KIND_ROOT:
+            folder = None
         if not folder:
-            self._warn("Add Material", "Select a folder first."); return
+            self._warn("Add Material", "Select a folder first.")
+            return
 
         init = {"name": sel_name, "thumb_b64": "", "assets": []}
         dlg = MaterialPropDialog(self, initial=init, title="Add Material")
-        if dlg.exec_() != QtWidgets.QDialog.Accepted: return
+        if dlg.exec_() != QtWidgets.QDialog.Accepted:
+            return
         data = dlg.get_data()
+        # เก็บ snapshot ของกราฟทันที
         try:
             if hasattr(mu, "capture_material_network"):
                 data["graph"] = mu.capture_material_network(data.get("name",""))
@@ -606,8 +777,8 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         mats = self.lib_data.setdefault(folder, [])
         mats.append(data)
         self._refresh_tree()
-        self._rescan_all_assets()
         self._rebuild_cards_for_folder(folder)
+        self._focus_card_by_id(id(data))
 
     def on_tree_clicked(self, item, _col):
         kind = item.data(0, self.KIND_ROLE)
@@ -620,48 +791,47 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             self._rebuild_cards_for_folder(folder)
             self._focus_card_by_id(item.data(0, self.MAT_ID_ROLE))
 
-    def _focus_card_by_id(self, mat_id: int):
-        card = self._card_index.get(mat_id)
-        if not card: return
-        def _do():
-            vp = self.scroll.viewport().height()
-            y = card.mapTo(self.cards_container, QtCore.QPoint(0,0)).y()
-            sb = self.scroll.verticalScrollBar(); sb.setValue(max(0, y - vp//3))
-            card.setFocus(QtCore.Qt.OtherFocusReason)
-        QtCore.QTimer.singleShot(0, _do)
-
     def on_tree_rename(self, item, _col):
         kind = item.data(0, self.KIND_ROLE)
-        if kind == self.KIND_ROOT: return
+        if kind == self.KIND_ROOT:
+            return
         old = item.text(0)
         new, ok = QtWidgets.QInputDialog.getText(self, "Rename", "New name:", text=old)
-        if not ok or not new or new == old: return
+        if not ok or not new or new == old:
+            return
 
         if kind == self.KIND_FOLDER:
             if new in self.lib_data:
-                self._warn("Rename", "Folder already exists."); return
+                self._warn("Rename", "Folder already exists.")
+                return
             self.lib_data[new] = self.lib_data.pop(old)
-            self._refresh_tree(); self._rebuild_cards_for_folder(new)
+            self._refresh_tree()
+            self._rebuild_cards_for_folder(new)
         else:
             folder = item.parent().text(0)
             mats = self.lib_data.get(folder, [])
             mat_id = item.data(0, self.MAT_ID_ROLE)
             ref = next((m for m in mats if id(m) == mat_id), None)
-            if not ref: return
+            if not ref:
+                return
             real_old = ref.get("name","")
             if self._rename_strict(real_old, new):
                 ref["name"] = new
                 item.setText(0, new)
                 card = self._card_index.get(mat_id)
-                if card: card.set_name(new)
-                self._rescan_all_assets()
+                if card:
+                    card.set_name(new)
+                self._merge_scene_assets(ref)
+                if card:
+                    card.refresh()
                 self._focus_card_by_id(mat_id)
             else:
                 item.setText(0, real_old)
 
     def on_delete(self):
         item = self.tree.currentItem()
-        if not item: return
+        if not item:
+            return
         kind = item.data(0, self.KIND_ROLE)
         if kind == self.KIND_FOLDER:
             name = item.text(0)
@@ -680,6 +850,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
 
     # -------- Save / Save As / Import ----------
     def _gather_graphs(self):
+        # แนบ snapshot ปัจจุบันก่อนบันทึก (ถ้ามีในซีน)
         for folder, mats in self.lib_data.items():
             for m in mats:
                 name = m.get("name","")
@@ -688,7 +859,6 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
                         m["graph"] = mu.capture_material_network(name)
                 except Exception:
                     pass
-                m["assets"] = []  # เคลียร์ก่อนบันทึก กัน carry-over
 
     def _write_json(self, path):
         self._gather_graphs()
@@ -696,54 +866,78 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             json.dump(self.lib_data, f, ensure_ascii=False, indent=2)
 
     def on_save(self):
+        # ถ้ามี path ข้างๆ scene ให้ใช้เลย, ถ้าไม่มีให้เปิด Save As…
         if not self._json_path:
-            self.on_save_as(); return
+            side = self._default_scene_side_json()
+            if side:
+                try:
+                    self._write_json(side)
+                    self._bind_json(side)
+                    QtWidgets.QMessageBox.information(self, "Save", f"Saved: {side}")
+                    return
+                except Exception as e:
+                    self._warn("Save failed", str(e))
+            self.on_save_as()
+            return
         try:
             self._write_json(self._json_path)
+            self._bind_json(self._json_path)
             QtWidgets.QMessageBox.information(self, "Save", f"Saved: {self._json_path}")
         except Exception as e:
             self._warn("Save failed", str(e))
 
     def on_save_as(self):
+        default_dir = os.path.dirname(cmds.file(q=True, sn=True)) if cmds and cmds.file(q=True, sn=True) else os.path.expanduser("~")
+        default_path = os.path.join(default_dir, "material_library.json")
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Library As",
-                                                        _scene_json_path() or os.path.expanduser("~"),
+                                                        default_path,
                                                         "Material Library (*.json)")
-        if not path: return
+        if not path:
+            return
         try:
             self._write_json(path)
-            self._json_path = path
+            self._bind_json(path)  # ผูกทันที
             QtWidgets.QMessageBox.information(self, "Save As", f"Saved: {path}")
         except Exception as e:
             self._warn("Save As failed", str(e))
 
     def on_import(self):
+        start_dir = self._default_scene_side_json() or os.path.expanduser("~")
+        if isinstance(start_dir, str) and start_dir.endswith(".json"):
+            start_dir = os.path.dirname(start_dir)
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Import Library",
-                                                        _scene_json_path() or os.path.expanduser("~"),
+                                                        start_dir or os.path.expanduser("~"),
                                                         "Material Library (*.json)")
-        if not path: return
+        if not path:
+            return
         try:
             with open(path, "r", encoding="utf-8") as f:
                 incoming = json.load(f)
         except Exception as e:
-            self._warn("Import failed", str(e)); return
+            self._warn("Import failed", str(e))
+            return
 
         # เลือกโฟลเดอร์ปลายทาง
         folders = list(self.lib_data.keys())
         if not folders:
             dest_folder, ok = QtWidgets.QInputDialog.getText(self, "Destination Folder",
                                                              "Folder name:", text="Imported")
-            if not ok or not dest_folder: return
+            if not ok or not dest_folder:
+                return
             self.lib_data[dest_folder] = []
         else:
             dest_folder, ok = QtWidgets.QInputDialog.getItem(self, "Destination Folder",
                                                              "Choose a folder:", folders, 0, False)
-            if not ok: return
+            if not ok:
+                return
 
         mats_in = []
         for k, v in (incoming or {}).items():
-            if isinstance(v, list): mats_in.extend(v)
+            if isinstance(v, list):
+                mats_in.extend(v)
 
         for m in mats_in:
+            # rebuild graph
             snap = (m.get("graph") or {})
             if snap and hasattr(mu, "rebuild_material_network"):
                 try:
@@ -752,13 +946,48 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
                         m["name"] = real_name
                 except Exception:
                     pass
-            m["assets"] = []
+            # merge assets กับซีนปัจจุบัน
+            self._merge_scene_assets(m)
             self.lib_data.setdefault(dest_folder, []).append(m)
 
         self._refresh_tree()
-        self._rescan_all_assets()
+        # focus โฟลเดอร์ปลายทาง
+        root = self.tree.topLevelItem(0)
+        for i in range(root.childCount()):
+            ch = root.child(i)
+            if ch.text(0) == dest_folder:
+                self.tree.setCurrentItem(ch)
+                break
+        self._rebuild_cards_for_folder(dest_folder)
 
-    # persistence (auto-load only when JSON file exists next to this scene)
+        # ผูกให้อัตโนมัติถ้าไฟล์อยู่โฟลเดอร์เดียวกับซีน หรือชื่อ material_library.json
+        scene_dir = os.path.dirname(cmds.file(q=True, sn=True)) if cmds and cmds.file(q=True, sn=True) else ""
+        auto_bind = False
+        if scene_dir and os.path.dirname(path) == scene_dir:
+            auto_bind = True
+        if os.path.basename(path).lower() == "material_library.json":
+            auto_bind = True
+        if auto_bind:
+            self._bind_json(path)
+
+    # refresh assets every run / on demand
+    def refresh_from_scene(self):
+        # อัปเดตรายชื่อ Asset Used จากซีนจริงทุกครั้งที่กด Refresh
+        changed = False
+        for mats in self.lib_data.values():
+            for m in mats:
+                before = list(m.get("assets", []))
+                self._merge_scene_assets(m)
+                after = m.get("assets", [])
+                if before != after:
+                    changed = True
+                    card = self._card_index.get(id(m))
+                    if card:
+                        card.refresh()
+        if changed:
+            self._refresh_tree()
+
+    # (ยังคงไว้เผื่อเรียกใช้ตรงๆ; แต่โดยปกติ auto-load จะดูแลให้)
     def _try_load(self):
         if not self._json_path or not os.path.isfile(self._json_path):
             return
@@ -767,17 +996,29 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
                 self.lib_data = json.load(f)
             for mats in self.lib_data.values():
                 for m in mats:
+                    m.setdefault("assets", [])
                     m.setdefault("thumb_b64","")
-                    m["assets"] = []
         except Exception as e:
             self._warn("Load failed", str(e))
+        # update folder counter
         max_f = 0
         for name in self.lib_data.keys():
             mf = re.match(r'^Folder\s+(\d+)$', name)
-            if mf: max_f = max(max_f, int(mf.group(1)))
+            if mf:
+                max_f = max(max_f, int(mf.group(1)))
         self.folder_counter = max(1, max_f+1)
         self._refresh_tree()
 
+    def closeEvent(self, e):
+        try:
+            for j in getattr(self, "_scriptjobs", []):
+                try:
+                    cmds.scriptJob(kill=j, force=True)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        super().closeEvent(e)
 
 # ---------- launcher ----------
 def run():
