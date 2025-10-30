@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-# MaliUtil.py : Utilities for Material Library (Maya)
+"""
+MaliUtil.py — Utilities for Material Library (Maya)
+- รองรับทั้ง PySide6 / PySide2
+- ไม่พึ่ง external packages อื่น
+- ใช้ร่วมกับ MaliUI.py ที่ส่งให้ล่าสุดได้เลย
+"""
 
 try:
     from PySide6 import QtCore, QtGui, QtWidgets
@@ -8,7 +13,6 @@ except Exception:
 
 import os, base64, re
 
-# maya
 try:
     import maya.cmds as cmds
 except Exception:
@@ -20,7 +24,9 @@ except Exception:
 # =============================================================================
 
 def selected_materials():
-    if not cmds: return []
+    """คืนชื่อ material ที่ถูกเลือกอยู่ (unique, ลำดับตามที่ Maya ส่งมา)"""
+    if not cmds:
+        return []
     mats = cmds.ls(sl=True, materials=True) or []
     out, seen = [], set()
     for m in mats:
@@ -28,10 +34,17 @@ def selected_materials():
             seen.add(m); out.append(m)
     return out
 
+
 def get_selected_material_name():
-    if not cmds: return ""
+    """คืนชื่อ material จาก selection
+    - ถ้า select วัสดุโดยตรง ให้คืนนั้น
+    - ถ้า select โหนด shader ให้คืนชื่อนั้น
+    """
+    if not cmds:
+        return ""
     mats = selected_materials()
-    if mats: return mats[0]
+    if mats:
+        return mats[0]
 
     shader_types = {
         "lambert","blinn","phong","phongE","surfaceShader",
@@ -46,17 +59,29 @@ def get_selected_material_name():
             pass
     return ""
 
+
 def get_shading_engine(material):
-    if not cmds or not material or not cmds.objExists(material): return None
+    """คืนชื่อ shadingEngine ตัวแรกที่ต่อจาก material (ถ้าไม่มีให้คืน None)"""
+    if not cmds or not material or not cmds.objExists(material):
+        return None
     ses = cmds.listConnections(material, type="shadingEngine") or []
     return ses[0] if ses else None
 
+
 def objects_using_material(material, unique_parents=True):
-    if not cmds: return []
+    """คืนรายการสมาชิกของ SG ที่ใช้ material
+    - ถ้า unique_parents=True จะคืนเป็น transform ชิ้นละชื่อ ไม่ซ้ำ
+    - ถ้า False จะคืนชื่อสมาชิกตรง ๆ ตามชุด
+    """
+    if not cmds:
+        return []
     se = get_shading_engine(material)
-    if not se: return []
+    if not se:
+        return []
     members = cmds.sets(se, q=True) or []
-    if not unique_parents: return members
+    if not unique_parents:
+        return members
+
     result = []
     for m in members:
         if cmds.nodeType(m) == "transform":
@@ -67,63 +92,97 @@ def objects_using_material(material, unique_parents=True):
             result.append(t)
     return result
 
+
 def select_objects_from_material(material):
-    if not cmds: return []
+    """เลือกวัตถุทั้งหมดที่ใช้ material (คืน list รายชื่อที่ถูกเลือก)"""
+    if not cmds:
+        return []
     objs = objects_using_material(material, unique_parents=True)
     cmds.select(objs or [], r=True)
     return objs
 
+
 def link_material_to_objects(material, objects=None):
-    if not cmds: return []
+    """Assign material ให้กับ objects ที่ส่งมา (หรือ selection ปัจจุบันถ้าไม่ส่ง)
+       คืน list รายชื่อ transform ที่ถูก assign
+    """
+    if not cmds:
+        return []
     if not material or not cmds.objExists(material):
         raise RuntimeError("Material not found: %s" % material)
+
     if objects is None:
         objects = cmds.ls(sl=True, dag=False, transforms=True) or []
-    if not objects: return []
+
+    if not objects:
+        return []
+
     cmds.select(objects, r=True)
     cmds.hyperShade(assign=material)
     cmds.select(clear=True)
     return list(objects)
 
+
 def open_hypershade(material=None):
-    if not cmds: return
+    """เปิด Hypershade และเลือก material ถ้ามี"""
+    if not cmds:
+        return
     cmds.HypershadeWindow()
     if material and cmds.objExists(material):
-        try: cmds.select(material, r=True)
-        except Exception: pass
+        try:
+            cmds.select(material, r=True)
+        except Exception:
+            pass
+
 
 def create_material(name, shader="lambert"):
-    if not cmds: return "", ""
-    if not name: raise RuntimeError("Material name is empty")
+    """สร้างหรือคืน material + SG (ถ้ามีอยู่แล้วจะคืนของเดิม)"""
+    if not cmds:
+        return "", ""
+    if not name:
+        raise RuntimeError("Material name is empty")
+
     if cmds.objExists(name):
         mat = name
     else:
         mat = cmds.shadingNode(shader, asShader=True, name=name)
+
     se = get_shading_engine(mat)
     if not se:
         se = cmds.sets(renderable=True, noSurfaceShader=True, empty=True, name=name+"SG")
-        try: cmds.connectAttr(mat+".outColor", se+".surfaceShader", f=True)
-        except Exception: pass
+        try:
+            cmds.connectAttr(mat+".outColor", se+".surfaceShader", f=True)
+        except Exception:
+            pass
     return mat, se
 
+
 def rename_material(old_name, new_name):
-    if not cmds: return new_name
+    """เปลี่ยนชื่อ material (raise error ถ้าไม่พบของเก่า)"""
+    if not cmds:
+        return new_name
     if not cmds.objExists(old_name):
         raise RuntimeError("Material not found: %s" % old_name)
-    if old_name == new_name: return new_name
+    if old_name == new_name:
+        return new_name
     return cmds.rename(old_name, new_name)
+
 
 # =============================================================================
 # Name normalization & viewport selection
 # =============================================================================
 
 def _to_transform(name):
-    if not cmds or not name or not cmds.objExists(name): return None
-    if cmds.nodeType(name) == "transform": return name
+    if not cmds or not name or not cmds.objExists(name):
+        return None
+    if cmds.nodeType(name) == "transform":
+        return name
     parent = (cmds.listRelatives(name, p=True) or [None])[0]
     return parent or name
 
+
 def normalize_objects(names):
+    """แปลงรายชื่อให้เป็น transform ไม่ซ้ำ"""
     seen, out = set(), []
     for n in names or []:
         t = _to_transform(n)
@@ -131,18 +190,24 @@ def normalize_objects(names):
             seen.add(t); out.append(t)
     return out
 
+
 def select_objects_by_names(names):
-    if not cmds: return []
+    """select objects จากรายชื่อ (normalize ก่อนเลือก)"""
+    if not cmds:
+        return []
     objs = normalize_objects(names)
     cmds.select(objs or [], r=True)
     return objs
 
+
 # =============================================================================
-# Image helpers
+# Image helpers (ใช้กับภาพ thumbnail/preview)
 # =============================================================================
 
 def qicon_from_b64(b64str):
-    if not b64str: return QtGui.QIcon()
+    """แปลง base64 เป็น QIcon (ใช้ใน Tree icon)"""
+    if not b64str:
+        return QtGui.QIcon()
     try:
         ba = QtCore.QByteArray.fromBase64(QtCore.QByteArray(b64str.encode("utf-8")))
         pm = QtGui.QPixmap(); pm.loadFromData(ba)
@@ -150,13 +215,14 @@ def qicon_from_b64(b64str):
     except Exception:
         return QtGui.QIcon()
 
+
 class ImagePreview(QtWidgets.QLabel):
-    """พรีวิวภาพ 'มุมโค้ง' พร้อมกรอบ วาดเองทั้งหมด"""
+    """พรีวิวภาพ 'มุมโค้ง' พร้อมกรอบ ใช้ใน MaterialCard และ Dialog เพิ่ม/แก้รูป"""
     def __init__(self, w=200, h=160, parent=None, radius=90):
         super().__init__(parent)
         self.setMinimumSize(w, h)
         self.setAlignment(QtCore.Qt.AlignCenter)
-        self.setStyleSheet("background: transparent;")  # เราจะวาด background เอง
+        self.setStyleSheet("background: transparent;")
         self._b64 = ""
         self._pm  = QtGui.QPixmap()
         self._radius = int(radius)
@@ -175,103 +241,108 @@ class ImagePreview(QtWidgets.QLabel):
         self.update()
 
     def paintEvent(self, e):
-        p = QtGui.QPainter(self)
-        p.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        p = QtGui.QPainter(self); p.setRenderHint(QtGui.QPainter.Antialiasing, True)
         rect = self.rect().adjusted(1, 1, -1, -1)
-
-        # สร้าง path มุมโค้ง
-        path = QtGui.QPainterPath()
-        r = float(self._radius)
+        path = QtGui.QPainterPath(); r = float(self._radius)
         path.addRoundedRect(QtCore.QRectF(rect), r, r)
-
-        # พื้นหลัง
         p.fillPath(path, self._bg_col)
-
-        # วาดรูป (clip ให้เป็นมุมโค้ง)
         if not self._pm.isNull():
-            p.save()
-            p.setClipPath(path)
+            p.save(); p.setClipPath(path)
             scaled = self._pm.scaled(rect.size(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-            x = rect.x() + (rect.width()  - scaled.width())  * 0.5
-            y = rect.y() + (rect.height() - scaled.height()) * 0.5
-            p.drawPixmap(int(x), int(y), scaled)
-            p.restore()
+            x = rect.x() + (rect.width()-scaled.width())*0.5
+            y = rect.y() + (rect.height()-scaled.height())*0.5
+            p.drawPixmap(int(x), int(y), scaled); p.restore()
         else:
             p.setPen(QtGui.QPen(QtGui.QColor("#aaaaaa")))
             p.drawText(rect, QtCore.Qt.AlignCenter, "No Preview")
-
-        # เส้นขอบ
-        pen = QtGui.QPen(self._border_col)
-        pen.setWidth(1)
-        p.setPen(pen)
-        p.drawPath(path)
-        p.end()
+        pen = QtGui.QPen(self._border_col); pen.setWidth(1); p.setPen(pen); p.drawPath(path); p.end()
 
     def resizeEvent(self, e):
-        super().resizeEvent(e)
-        self.update()
+        super().resizeEvent(e); self.update()
+
 
 def pick_image_to_base64(parent=None):
+    """เปิดไฟล์รูปและคืน base64 + path (รองรับ png/jpg/jpeg/bmp/tif/tiff)"""
     filters = "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)"
     path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, "Choose Image", "", filters)
-    if not path: return "", ""
+    if not path:
+        return "", ""
     with open(path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode("utf-8")
     return b64, path
+
 
 # =============================================================================
 # Whole material graph snapshot (serialize/deserialize)
 # =============================================================================
 
+# ข้ามแอททริบิวต์ระบบที่ไม่จำเป็น/เซ็ตไม่ได้
 _SKIP_ATTR_PATTERNS = (
     r'^message$', r'^isHistoricallyInteresting$', r'^caching$', r'^blackBox$',
     r'^nodeState$', r'^binMembership$', r'^uuid$', r'^hasBrush$', r'^drawOverride\..*',
 )
+
 def _skip_attr(attr_name: str) -> bool:
     return any(re.match(p, attr_name) for p in _SKIP_ATTR_PATTERNS)
 
+
 def _safe_list(value):
-    if isinstance(value, (list, tuple)): return list(value)
+    if isinstance(value, (list, tuple)):
+        return list(value)
     return value
 
+
 def _all_upstream_nodes(mat):
+    """รวบรวมโหนดทั้งหมดที่อยู่ต้นทางของ material (รวมตัว material เอง)"""
     hist = cmds.listHistory(mat, pruneDagObjects=True, allConnections=True, future=False) or []
     out, seen = [], set()
     for n in hist + [mat]:
-        if n in seen: continue
+        if n in seen:
+            continue
         seen.add(n)
         try:
             if cmds.objectType(n, isAType="dagNode"):
+                # ข้ามพวก dag node (mesh/transform) ให้อยู่แค่ shader network
                 continue
         except Exception:
             pass
         out.append(n)
     return out
 
+
 def _node_attrs_dump(node):
+    """ดึงค่าพร็อพของโหนดที่ settable และไม่ถูกต่ออินพุตอยู่"""
     data = {}
     atts = cmds.listAttr(node, settable=True) or []
     for a in atts:
-        if _skip_attr(a): continue
+        if _skip_attr(a):
+            continue
         plug = f"{node}.{a}"
         try:
             if cmds.connectionInfo(plug, isDestination=True):
+                # ข้ามพอร์ตที่รับค่าจากการต่อสาย
                 continue
             val = cmds.getAttr(plug)
         except Exception:
             continue
+
         payload = {"name": a, "value": _safe_list(val), "type": None}
         try:
             payload["type"] = cmds.getAttr(plug, type=True)
         except Exception:
             pass
+
+        # จัดรูปแบบค่า 3 ช่อง (double3/float3)
         if payload["type"] in ("double3","float3") and isinstance(payload["value"], list):
-            if len(payload["value"])==1 and isinstance(payload["value"][0], (list,tuple)):
+            if len(payload["value"]) == 1 and isinstance(payload["value"][0], (list, tuple)):
                 payload["value"] = list(payload["value"][0])
+
         data[a] = payload
     return data
 
+
 def _node_connections_dump(nodes_set):
+    """เก็บรายการการต่อสายที่อยู่ภายในชุดโหนดที่สนใจ"""
     conns = set()
     for n in nodes_set:
         try:
@@ -279,23 +350,28 @@ def _node_connections_dump(nodes_set):
         except Exception:
             continue
         for i in range(0, len(plugs), 2):
-            dstPlug, srcPlug = plugs[i], plugs[i+1]
+            dstPlug, srcPlug = plugs[i], plugs[i+1]  # Maya คืน [dst, src, dst, src, ...]
             dstNode = dstPlug.split('.')[0]
             srcNode = srcPlug.split('.')[0]
             if dstNode in nodes_set and srcNode in nodes_set:
                 conns.add((srcPlug, dstPlug))
     return [{"src": s, "dst": d} for (s, d) in sorted(conns)]
 
+
 def _collect_file_embeds(node):
+    """ถ้าเป็น file node จะพยายามฝังไฟล์ (base64) + เก็บ colorspace + path"""
     info = {}
     try:
-        if cmds.nodeType(node) not in ("file",): return {}
+        if cmds.nodeType(node) not in ("file",):
+            return {}
         path = cmds.getAttr(node + ".fileTextureName") or ""
         info["path"] = path
         try:
-            cs = cmds.getAttr(node + ".colorSpace"); info["colorSpace"] = cs
+            cs = cmds.getAttr(node + ".colorSpace")
+            info["colorSpace"] = cs
         except Exception:
             pass
+
         if path and os.path.exists(path):
             with open(path, "rb") as f:
                 info["b64"] = base64.b64encode(f.read()).decode("utf-8")
@@ -304,51 +380,75 @@ def _collect_file_embeds(node):
         pass
     return info
 
+
 def capture_material_network(material):
-    if not cmds or not cmds.objExists(material): return {}
+    """บันทึก snapshot โครงข่ายวัสดุทั้งชุด (nodes/attrs/connections + ฝังเท็กซ์เจอร์ไฟล์)"""
+    if not cmds or not cmds.objExists(material):
+        return {}
     nodes = _all_upstream_nodes(material)
     nodes_set = set(nodes)
+
     out_nodes = {}
     for n in nodes:
-        try: ntype = cmds.nodeType(n)
-        except Exception: continue
+        try:
+            ntype = cmds.nodeType(n)
+        except Exception:
+            continue
         spec = {"type": ntype, "attrs": _node_attrs_dump(n)}
         if ntype == "file":
             spec["embed"] = _collect_file_embeds(n)
         out_nodes[n] = spec
+
     connections = _node_connections_dump(nodes_set)
     return {"material": material, "nodes": out_nodes, "connections": connections}
 
+
 def _unique_name_like(base):
+    """ตั้งชื่อไม่ชนในซีน โดยเติม _2, _3, ..."""
     i, name = 2, base
     while cmds.objExists(name):
         name = f"{base}_{i}"; i += 1
     return name
 
+
 def _ensure_sourceimages():
+    """หรือตั้งค่าโฟลเดอร์ sourceimages ของโปรเจกต์เพื่อเขียนไฟล์ฝังออกไป"""
     try:
         root = cmds.workspace(q=True, rd=True)
-        if not root: raise RuntimeError()
+        if not root:
+            raise RuntimeError()
     except Exception:
+        # fallback
         root = os.path.expanduser("~/Documents/maya/")
     src = os.path.join(root, "sourceimages")
     os.makedirs(src, exist_ok=True)
     return src
 
+
 def _write_embed_to_disk(embed):
-    if not embed or not embed.get("b64"): return None
+    """เขียนไฟล์เท็กซ์เจอร์จาก embed base64 ลงดิสก์เพื่อใช้เป็น fileTextureName"""
+    if not embed or not embed.get("b64"):
+        return None
     dst_dir = _ensure_sourceimages()
     fname = embed.get("name") or "tex.png"
     base, ext = os.path.splitext(os.path.join(dst_dir, fname))
-    fp, i = base+ext, 1
+    fp, i = base + ext, 1
     while os.path.exists(fp):
-        i += 1; fp = f"{base}_{i}{ext}"
+        i += 1
+        fp = f"{base}_{i}{ext}"
     with open(fp, "wb") as f:
         f.write(base64.b64decode(embed["b64"]))
     return fp
 
+
 def rebuild_material_network(snapshot: dict, new_material_name: str = None, namespace: str = "MLI"):
-    if not cmds or not snapshot: return ""
+    """สร้างชุดโหนดใหม่จาก snapshot (คืนชื่อ material ที่สร้าง)
+    - ถ้า new_material_name ถูกส่งมา จะใช้ชื่อนั้นกับ material (กันชนด้วย _2, _3, ...)
+    - อื่น ๆ จะวางชื่อเดิมพร้อมใส่ namespace ป้องกันชน
+    """
+    if not cmds or not snapshot:
+        return ""
+
     nodes = snapshot.get("nodes") or {}
     conns = snapshot.get("connections") or []
     mat_old = snapshot.get("material") or ""
@@ -356,37 +456,54 @@ def rebuild_material_network(snapshot: dict, new_material_name: str = None, name
     rename_map = {}
     for old, spec in nodes.items():
         ntype = spec.get("type")
+
+        # วางชื่อ material
         if old == mat_old and new_material_name:
             new = _unique_name_like(new_material_name)
         else:
             base = f"{namespace}_{old}" if cmds.objExists(old) else old
             new = _unique_name_like(base)
+
+        # สร้างโหนด
         try:
-            created = cmds.shadingNode(ntype, asShader=True, name=new) if ntype.endswith("Surface") \
-                      else cmds.createNode(ntype, name=new)
+            if ntype.endswith("Surface"):
+                created = cmds.shadingNode(ntype, asShader=True, name=new)
+            else:
+                # บางโหนดต้อง createNode ถึงจะถูก (เช่น file, place2dTexture)
+                created = cmds.createNode(ntype, name=new)
         except Exception:
-            try: created = cmds.createNode(ntype, name=new)
-            except Exception: continue
+            try:
+                created = cmds.createNode(ntype, name=new)
+            except Exception:
+                continue
+
         rename_map[old] = created
 
-    # set attrs
+    # set attributes กลับ
     for old, spec in nodes.items():
         new = rename_map.get(old)
-        if not new: continue
+        if not new:
+            continue
         for a, payload in (spec.get("attrs") or {}).items():
             plug = f"{new}.{payload['name']}"
             val, atype = payload.get("value"), payload.get("type")
-            if val is None: continue
+            if val is None:
+                continue
             try:
-                if atype in ("string","cstring"):
+                if atype in ("string", "cstring"):
                     cmds.setAttr(plug, val, type="string")
-                elif atype in ("double3","float3"):
-                    if isinstance(val, (list,tuple)) and len(val)==3:
-                        cmds.setAttr(plug, *val, type=atype)
+                elif atype in ("double3", "float3"):
+                    if isinstance(val, (list, tuple)) and len(val) == 3:
+                        # หมายเหตุ: สำหรับ float3/double3 ถ้า setAttr ปกติแล้ว error ให้ลอง type="double3"
+                        try:
+                            cmds.setAttr(plug, *val, type=atype)
+                        except Exception:
+                            cmds.setAttr(plug, *val, type="double3")
                 else:
                     cmds.setAttr(plug, val)
             except Exception:
                 pass
+
         # restore file node texture
         if spec.get("type") == "file":
             emb = spec.get("embed") or {}
@@ -396,30 +513,40 @@ def rebuild_material_network(snapshot: dict, new_material_name: str = None, name
             elif emb.get("path"):
                 path = emb["path"]
             if path:
-                try: cmds.setAttr(new + ".fileTextureName", path, type="string")
-                except Exception: pass
+                try:
+                    cmds.setAttr(new + ".fileTextureName", path, type="string")
+                except Exception:
+                    pass
             if emb.get("colorSpace"):
-                try: cmds.setAttr(new + ".colorSpace", emb["colorSpace"], type="string")
-                except Exception: pass
+                try:
+                    cmds.setAttr(new + ".colorSpace", emb["colorSpace"], type="string")
+                except Exception:
+                    pass
 
-    # connect
+    # connect attributes
     for c in conns:
         s_old, d_old = c.get("src"), c.get("dst")
-        if not s_old or not d_old: continue
-        s_node, s_attr = s_old.split('.',1)
-        d_node, d_attr = d_old.split('.',1)
+        if not s_old or not d_old:
+            continue
+        s_node, s_attr = s_old.split('.', 1)
+        d_node, d_attr = d_old.split('.', 1)
         s_new, d_new = rename_map.get(s_node), rename_map.get(d_node)
-        if not s_new or not d_new: continue
-        try: cmds.connectAttr(f"{s_new}.{s_attr}", f"{d_new}.{d_attr}", f=True)
-        except Exception: pass
+        if not s_new or not d_new:
+            continue
+        try:
+            cmds.connectAttr(f"{s_new}.{s_attr}", f"{d_new}.{d_attr}", f=True)
+        except Exception:
+            pass
 
-    # ensure SG
+    # ensure SG สำหรับ material ใหม่
     mat_new = rename_map.get(mat_old)
     if mat_new:
         se = get_shading_engine(mat_new)
         if not se:
             se = cmds.sets(renderable=True, noSurfaceShader=True, empty=True, name=f"{mat_new}SG")
-            try: cmds.connectAttr(mat_new + ".outColor", se + ".surfaceShader", f=True)
-            except Exception: pass
+            try:
+                cmds.connectAttr(mat_new + ".outColor", se + ".surfaceShader", f=True)
+            except Exception:
+                pass
 
     return mat_new or ""

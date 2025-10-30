@@ -28,35 +28,32 @@ except Exception:
 # ================================
 # CENTRAL THEME (แก้สี/ฟ้อนต์/มุมโค้ง จากที่เดียว)
 # ================================
-# ================================
-# CENTRAL THEME (แก้สี/ฟ้อนต์/มุมโค้ง จากที่เดียว)
-# ================================
 THEME = {
     # ---- Global font ----
-    "font_family": "SF Pro Display",   # เปลี่ยนเป็นฟอนต์ที่มีในเครื่องได้
+    "font_family": "SF Pro Display",
     "font_size":   9,
 
     # ---- Base / Panels ----
     "bg_top":      "#0b0f19",
     "bg_bottom":   "#11172a",
-    "panel_bg":    "rgba(255,255,255,0.035)",   # glass เบาๆ
+    "panel_bg":    "rgba(255,255,255,0.035)",
     "text":        "#F2F4F8",
     "muted":       "#B7C0D0",
     "border":      "rgba(255,255,255,0.08)",
-    "round":        10,                # มุมโค้งของการ์ด/อินพุต
+    "round":        10,
 
-    # ---- Buttons (ทั่วไป) ----
+    # ---- Buttons ----
     "btn_bg":         "rgba(255,255,255,0.06)",
     "btn_fg":         "#EAF0FF",
-    "btn_hover_a":    "#7A5CFF",       # gradient a (ม่วง)
-    "btn_hover_b":    "#4CB3FF",       # gradient b (ฟ้า)
+    "btn_hover_a":    "#7A5CFF",
+    "btn_hover_b":    "#4CB3FF",
     "btn_hover_fg":   "#FFFFFF",
     "btn_disabledbg": "rgba(255,255,255,0.04)",
     "btn_disabledfg": "#8892A6",
     "btn_border":     "rgba(255,255,255,0.10)",
     "btn_round":      14,
 
-    # ---- สีตอน “ถูกกด/ค้าง/checked” → ม่วงล้วน ----
+    # ---- Pressed/Checked solid ----
     "solid_purple": "#7A5CFF",
     "solid_fg":     "#FFFFFF",
     "solid_bd":     "#7ea6ff",
@@ -69,8 +66,8 @@ THEME = {
     "focus_ring":   "#86B7FF",
 
     # ---- Headings ----
-    "title_fg":     "#FFFFFF",     # “Materials Detail”
-    "header_fg":    "#E9ECF7",     # “Asset Used”
+    "title_fg":     "#FFFFFF",
+    "header_fg":    "#E9ECF7",
 
     # ---- Preview fallback ----
     "preview_bg":   "rgba(255,255,255,0.04)",
@@ -78,12 +75,10 @@ THEME = {
 }
 
 def build_stylesheet(t=THEME) -> str:
-    """QSS ครอบทั้ง UI — ทุกสี/ฟ้อนต์/มุมโค้งอ่านจาก THEME"""
     r  = int(t["round"])
     br = int(t["btn_round"])
     fs = int(t["font_size"])
     return f"""
-    /* =================== Global =================== */
     QDialog, QWidget {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
             stop:0 {t['bg_top']}, stop:1 {t['bg_bottom']});
@@ -91,17 +86,14 @@ def build_stylesheet(t=THEME) -> str:
         font-family: "{t['font_family']}";
         font-size: {fs}pt;
     }}
-    /* ให้ label โปร่งใส -> สีพื้นหลัง Name / Asset Used จะไม่เข้มเป็นแท่ง */
     QLabel {{ background: transparent; }}
 
-    /* Panels / Cards (RightPanel, LeftPanel, MaterialCard) */
     QWidget#LeftPanel, QWidget#RightPanel, QFrame[objectName^="Card"] {{
         background-color: {t['panel_bg']};
         border: 1px solid {t['border']};
         border-radius: {r}px;
     }}
 
-    /* Titles & headers */
     QLabel#TitleLabel {{
         color: {t['title_fg']}; font-weight: 700; font-size: {fs+2}pt;
     }}
@@ -109,7 +101,6 @@ def build_stylesheet(t=THEME) -> str:
         color: {t['header_fg']}; font-weight: 600;
     }}
 
-    /* Buttons — base (เหมือนกันทุกปุ่ม รวม Save/OK) */
     QPushButton, QToolButton {{
         background: {t['btn_bg']};
         color: {t['btn_fg']};
@@ -117,21 +108,18 @@ def build_stylesheet(t=THEME) -> str:
         border-radius: {br}px;
         padding: 7px 14px;
     }}
-    /* ปุ่ม default (OK/Save) ไม่ต้องพิเศษ — ให้เหมือน base */
     QPushButton:default {{
         background: {t['btn_bg']};
         color: {t['btn_fg']};
         border: 1px solid {t['btn_border']};
         border-radius: {br}px;
     }}
-    /* Hover → Gradient ม่วง-ฟ้า */
     QPushButton:hover, QToolButton:hover, QPushButton:default:hover {{
         background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
             stop:0 {t['btn_hover_a']}, stop:1 {t['btn_hover_b']});
         color: {t['btn_hover_fg']};
         border-color: rgba(255,255,255,0.25);
     }}
-    /* กด/ค้าง/checked → ม่วงล้วน (รวม Save/OK) */
     QPushButton:pressed,
     QPushButton:checked,
     QToolButton:pressed,
@@ -146,7 +134,6 @@ def build_stylesheet(t=THEME) -> str:
         background: {t['btn_disabledbg']}; color: {t['btn_disabledfg']}; border-color: {t['border']};
     }}
 
-    /* Inputs */
     QLineEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
         background: {t['field_bg']};
         color: {t['field_fg']};
@@ -160,7 +147,6 @@ def build_stylesheet(t=THEME) -> str:
         border: 1px solid {t['focus_ring']};
     }}
 
-    /* Lists / Trees / ScrollArea */
     QTreeWidget, QListWidget, QTableView, QScrollArea {{
         background: {t['field_bg']};
         color: {t['field_fg']};
@@ -172,12 +158,10 @@ def build_stylesheet(t=THEME) -> str:
         color: {t['field_sel_fg']};
     }}
 
-    /* Thin dividers (HLine) */
     QFrame[frameShape="4"], QFrame[frameShape="5"] {{
         background: {t['border']}; max-height: 1px; border: none;
     }}
 
-    /* Preview (fallback QLabel) */
     QLabel#PreviewFallback {{
         background: {t['preview_bg']};
         color: {t['muted']};
@@ -185,7 +169,6 @@ def build_stylesheet(t=THEME) -> str:
         border-radius: {r}px;
     }}
 
-    /* Scrollbars โทนกลืนพื้น */
     QScrollBar:vertical, QScrollBar:horizontal {{
         background: transparent; border: none; margin: 0px;
     }}
@@ -196,13 +179,11 @@ def build_stylesheet(t=THEME) -> str:
     """
 
 def apply_theme(widget: QtWidgets.QWidget):
-    """เรียกครั้งเดียวหลังสร้าง UI ของแต่ละหน้าต่าง/ไดอะล็อก"""
     f = widget.font()
     f.setPointSize(int(THEME["font_size"]))
     f.setFamily(THEME["font_family"])
     widget.setFont(f)
     widget.setStyleSheet(build_stylesheet(THEME))
-
 
 # ================================
 # Constants / sizing
@@ -217,7 +198,6 @@ PREVIEW_H       = 150
 # JSON path policy (per-scene)
 # ================================
 def _scene_json_path():
-    """ใช้ JSON ข้างๆ scene ปัจจุบันเท่านั้น (ไฟล์ใหม่/ยังไม่ save = ไม่โหลดอะไรเลย)"""
     try:
         sn = cmds.file(q=True, sn=True) if cmds else ""
     except Exception:
@@ -244,14 +224,9 @@ def _qicon_from_b64(b64str: str) -> QtGui.QIcon:
         return QtGui.QIcon()
 
 # =========================
-# Dialog: Add Material (ชื่อ read-only)
+# Dialog: Add Material
 # =========================
 class MaterialPropDialog(QtWidgets.QDialog):
-    """Add Material dialog
-    - Name: read-only (จาก Hypershade)
-    - Preview: กลางแนวนอน
-    - Buttons: Add Image ซ้าย | OK/Cancel ขวา
-    """
     def __init__(self, parent=None, initial=None, title="Add Material"):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -266,15 +241,10 @@ class MaterialPropDialog(QtWidgets.QDialog):
                 base["name"] = mu.get_selected_material_name() or ""
         self.data = base
 
-        # ====== Layout ======
         main = QtWidgets.QVBoxLayout(self)
         main.setContentsMargins(8, 8, 8, 8)
         main.setSpacing(6)
 
-        # (Header) - optional title label styling hook
-        # n/a here
-
-        # Name row (read-only)
         form = QtWidgets.QFormLayout()
         form.setContentsMargins(0,0,0,0)
         self.name_le = QtWidgets.QLineEdit(self.data.get("name", ""))
@@ -283,7 +253,6 @@ class MaterialPropDialog(QtWidgets.QDialog):
         form.addRow("Name:", self.name_le)
         main.addLayout(form)
 
-        # Preview centered
         if hasattr(mu, "ImagePreview"):
             self.preview = mu.ImagePreview(200, 200, self)
             self.preview.set_image_b64(self.data.get("thumb_b64", ""))
@@ -296,7 +265,6 @@ class MaterialPropDialog(QtWidgets.QDialog):
         center_row.addStretch(1); center_row.addWidget(self.preview, 0); center_row.addStretch(1)
         main.addLayout(center_row)
 
-        # Bottom buttons
         btns = QtWidgets.QHBoxLayout()
         self.btn_addimg = QtWidgets.QPushButton("Add Image")
         btns.addWidget(self.btn_addimg)
@@ -306,12 +274,10 @@ class MaterialPropDialog(QtWidgets.QDialog):
         btns.addWidget(ok_btn); btns.addWidget(cancel_btn)
         main.addLayout(btns)
 
-        # Signals
         self.btn_addimg.clicked.connect(self._pick_image)
         ok_btn.clicked.connect(self.accept)
         cancel_btn.clicked.connect(self.reject)
 
-        # THEME
         apply_theme(self)
 
     def _pick_image(self):
@@ -332,7 +298,7 @@ class MaterialPropDialog(QtWidgets.QDialog):
         }
 
 # =================
-# Material Card (การ์ดฝั่งขวา)
+# Material Card
 # =================
 class MaterialCard(QtWidgets.QFrame):
     nameEditedLive = QtCore.Signal(object, str)
@@ -340,22 +306,21 @@ class MaterialCard(QtWidgets.QFrame):
     requestEdit    = QtCore.Signal(object)
     requestSelect  = QtCore.Signal(object)
     requestLink    = QtCore.Signal(object)
+    # --- เพิ่มสัญญาณ: รูป thumb เปลี่ยน ---
+    thumbChanged   = QtCore.Signal(object)
 
     def __init__(self, mat_ref: dict, parent=None):
         super().__init__(parent)
-        self.setObjectName("Card_Material")  # เพื่อ QSS กลุ่มการ์ด
+        self.setObjectName("Card_Material")
         self.mat = mat_ref
         self.mat.setdefault("assets", [])
-
         self.setFrameShape(QtWidgets.QFrame.StyledPanel)
 
         main = QtWidgets.QVBoxLayout(self)
         main.setContentsMargins(12,12,12,12); main.setSpacing(10)
 
-        # Top row: preview + right controls
         top = QtWidgets.QHBoxLayout()
 
-        # Preview
         if hasattr(mu, "ImagePreview"):
             self.preview = mu.ImagePreview(PREVIEW_W, PREVIEW_H, self)
             self.preview.set_image_b64(self.mat.get("thumb_b64",""))
@@ -366,10 +331,8 @@ class MaterialCard(QtWidgets.QFrame):
             self.preview.setAlignment(QtCore.Qt.AlignCenter)
         top.addWidget(self.preview,0)
 
-        # Right column
         right = QtWidgets.QVBoxLayout()
 
-        # Name: label + editable line
         name_row = QtWidgets.QHBoxLayout()
         name_lbl = QtWidgets.QLabel("Name :")
         name_lbl.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -377,7 +340,6 @@ class MaterialCard(QtWidgets.QFrame):
         name_row.addWidget(name_lbl); name_row.addWidget(self.name_le, 1)
         right.addLayout(name_row)
 
-        # Row buttons 1
         row1 = QtWidgets.QHBoxLayout()
         self.btn_edit = QtWidgets.QPushButton("Edit Material")
         self.btn_link = QtWidgets.QPushButton("Link Material")
@@ -385,7 +347,6 @@ class MaterialCard(QtWidgets.QFrame):
         row1.addWidget(self.btn_edit); row1.addWidget(self.btn_link)
         right.addLayout(row1)
 
-        # Row buttons 2
         row2 = QtWidgets.QHBoxLayout()
         self.btn_addimg = QtWidgets.QPushButton("Edit Image")
         self.btn_select = QtWidgets.QPushButton("Select All")
@@ -397,7 +358,6 @@ class MaterialCard(QtWidgets.QFrame):
         main.addLayout(top)
         main.addWidget(self._hline())
 
-        # Header: Asset Used + Remove (ปุ่ม Remove จะรับโฟกัส)
         header = QtWidgets.QHBoxLayout()
         lbl = QtWidgets.QLabel("Asset Used"); lbl.setObjectName("HeaderLabel")
         lbl.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -407,7 +367,6 @@ class MaterialCard(QtWidgets.QFrame):
         header.addWidget(self.btn_asset_del)
         main.addLayout(header)
 
-        # Asset list
         self.asset_list = QtWidgets.QListWidget()
         self.asset_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.asset_list.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -415,7 +374,6 @@ class MaterialCard(QtWidgets.QFrame):
         main.addWidget(self.asset_list,1)
         main.addWidget(self._hline())
 
-        # Signals
         self.name_le.textEdited.connect(lambda t: self.nameEditedLive.emit(self.mat, t))
         self.name_le.editingFinished.connect(lambda: self.nameCommitted.emit(self.mat, self.name_le.text().strip()))
         self.btn_edit.clicked.connect(lambda: self.requestEdit.emit(self.mat))
@@ -442,6 +400,8 @@ class MaterialCard(QtWidgets.QFrame):
         if not b64: return
         self.mat["thumb_b64"] = b64
         if hasattr(self.preview, "set_image_b64"): self.preview.set_image_b64(b64)
+        # --- แจ้งไปให้ฝั่ง Tree อัปเดตไอคอนทันที ---
+        self.thumbChanged.emit(self.mat)
 
     def _asset_del(self):
         sel = self.asset_list.selectedItems()
@@ -495,6 +455,98 @@ class MaterialCard(QtWidgets.QFrame):
             self.preview.set_image_b64(self.mat.get("thumb_b64",""))
         self._populate_assets()
 
+# =================
+# MaterialTree (Drag & Drop controller)
+# =================
+class MaterialTree(QtWidgets.QTreeWidget):
+    MIME = "application/x-mli-material"
+
+    def __init__(self, owner_dialog, *a, **kw):
+        super().__init__(*a, **kw)
+        self._dlg = owner_dialog
+        # เปิด drag/drop แต่ไม่ใช้ InternalMove
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop)
+        self.setDefaultDropAction(QtCore.Qt.MoveAction)
+        self.viewport().setAcceptDrops(True)
+
+    def mimeTypes(self):
+        return [self.MIME]
+
+    def mimeData(self, items):
+        md = QtCore.QMimeData()
+        if not items:
+            return md
+        it = items[0]
+        kind = it.data(0, self._dlg.KIND_ROLE)
+        if kind != self._dlg.KIND_MAT:
+            return md
+        mat_id = it.data(0, self._dlg.MAT_ID_ROLE)
+        src_folder = it.parent().text(0) if it.parent() else ""
+        payload = json.dumps({"mat_id": int(mat_id), "src_folder": src_folder})
+        md.setData(self.MIME, payload.encode("utf-8"))
+        return md
+
+    def startDrag(self, supportedActions):
+        it = self.currentItem()
+        if not it:
+            return
+        md = self.mimeData([it])
+        if not md or not md.hasFormat(self.MIME):
+            return
+        drag = QtGui.QDrag(self)
+        drag.setMimeData(md)
+        drag.exec_(QtCore.Qt.MoveAction)
+
+    def dragMoveEvent(self, e: QtGui.QDragMoveEvent):
+        if not e.mimeData().hasFormat(self.MIME):
+            e.ignore(); return
+        it = self.itemAt(e.pos())
+        if not it:
+            e.ignore(); return
+        kind = it.data(0, self._dlg.KIND_ROLE)
+        if kind in (self._dlg.KIND_FOLDER, self._dlg.KIND_MAT):
+            e.setDropAction(QtCore.Qt.MoveAction)
+            e.accept()
+        else:
+            e.ignore()
+
+    def dropEvent(self, e: QtGui.QDropEvent):
+        if not e.mimeData().hasFormat(self.MIME):
+            e.ignore(); return
+        try:
+            data = json.loads(bytes(e.mimeData().data(self.MIME)).decode("utf-8"))
+            mat_id = int(data["mat_id"]); src_folder = data["src_folder"]
+        except Exception:
+            e.ignore(); return
+
+        dest_item = self.itemAt(e.pos())
+        if not dest_item:
+            e.ignore(); return
+
+        dest_kind = dest_item.data(0, self._dlg.KIND_ROLE)
+        if dest_kind == self._dlg.KIND_FOLDER:
+            dest_folder = dest_item.text(0)
+            insert_index = None   # append ท้ายโฟลเดอร์
+        elif dest_kind == self._dlg.KIND_MAT:
+            dest_folder = dest_item.parent().text(0)
+            insert_index = dest_item.parent().indexOfChild(dest_item)  # แทรกก่อนปลายทาง
+        else:
+            e.ignore(); return
+
+        moved = self._dlg._move_material_between_folders(
+            mat_id=mat_id,
+            src_folder=src_folder,
+            dest_folder=dest_folder,
+            insert_index=insert_index
+        )
+        if moved:
+            e.setDropAction(QtCore.Qt.MoveAction)
+            e.accept()
+        else:
+            e.ignore()
+
 # ==============
 # Main Dialog
 # ==============
@@ -519,12 +571,13 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         self.current_folder = None
         self._tree_index, self._card_index = {}, {}
         self._sized_once = False
-        self._json_path = _scene_json_path()  # None เมื่อยังไม่ได้ save scene
+        self._json_path = _scene_json_path()
 
         # left panel
         left = QtWidgets.QWidget(); left.setObjectName("LeftPanel")
         left_l = QtWidgets.QVBoxLayout(left); left_l.setContentsMargins(6,6,6,6)
-        self.tree = QtWidgets.QTreeWidget(); self.tree.setHeaderHidden(True)
+        self.tree = MaterialTree(self)                   # <--- ใช้ MaterialTree
+        self.tree.setHeaderHidden(True)
         self.tree.setIndentation(16); self.tree.setIconSize(TREE_ICON_SIZE)
         left_l.addWidget(self.tree)
         lb = QtWidgets.QHBoxLayout()
@@ -548,7 +601,6 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         right_l.addWidget(self.scroll,1)
         right_l.addWidget(self._hline())
 
-        # bottom buttons
         hb = QtWidgets.QHBoxLayout()
         self.btn_refresh = QtWidgets.QPushButton("Refresh")
         self.btn_import  = QtWidgets.QPushButton("Import")
@@ -573,7 +625,6 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         self.btn_import.clicked.connect(self.on_import)
         self.btn_refresh.clicked.connect(self.refresh_from_scene)
 
-        # build tree
         self._refresh_tree()
 
         # scriptJobs & auto-load binding
@@ -587,10 +638,8 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         except Exception:
             pass
 
-        # default selection
         QtCore.QTimer.singleShot(0, self._apply_initial_sizes)
 
-        # THEME
         apply_theme(self)
 
     # ---------------- binding helpers ----------------
@@ -642,7 +691,6 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             self._load_from_path(side)
             self._bind_json(side)
             return
-        # not found → clear
         self.lib_data = {}
         self._refresh_tree()
         self._rebuild_cards([])
@@ -695,7 +743,6 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             m["assets"] = sorted(merged)
 
     def _focus_card_by_id(self, mat_id: int):
-        """เลื่อนการ์ดให้ชิดขอบบนของ ScrollArea"""
         card = self._card_index.get(mat_id)
         if not card: return
         def _do():
@@ -710,6 +757,19 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         super().showEvent(e)
         if not self._sized_once:
             self.resize(DEFAULT_SIZE); self._sized_once = True
+
+    # --- อัปเดตรูปไอคอนใน Tree ทันทีเมื่อพรีวิวเปลี่ยน ---
+    def _on_card_thumb_changed(self, mat_ref: dict):
+        """อัปเดตไอคอนของ material ในฝั่ง Tree ทันทีเมื่อรูปพรีวิวถูกแก้"""
+        try:
+            item = self._tree_index.get(id(mat_ref))
+            if not item:
+                return
+            item.setIcon(0, self._material_icon(mat_ref))
+            # บังคับวาดใหม่ให้เห็นผลทันที
+            self.tree.viewport().update()
+        except Exception:
+            pass
 
     # tree build
     def _refresh_tree(self):
@@ -756,10 +816,46 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             card.requestEdit.connect(self._card_edit_material)
             card.requestSelect.connect(self._card_select_objs)
             card.requestLink.connect(self._card_link_material)
+            # --- ผูกสัญญาณรูปเปลี่ยนกับตัวอัปเดต Tree ---
+            card.thumbChanged.connect(lambda mm, self=self: self._on_card_thumb_changed(mm))
+
             self.cards_layout.addWidget(card)
             self._card_index[id(m)] = card
 
         self.cards_layout.addStretch()
+
+    # -------- Drag/Drop backend --------
+    def _move_material_between_folders(self, mat_id: int, src_folder: str, dest_folder: str, insert_index=None) -> bool:
+        """ย้ายหรือจัดลำดับ material ใน lib_data แล้วรีเฟรช UI ทันที"""
+        if not src_folder or not dest_folder: return False
+        src_list = self.lib_data.get(src_folder, [])
+        if not src_list: return False
+
+        ref, src_idx = None, -1
+        for i, m in enumerate(src_list):
+            if id(m) == mat_id:
+                ref, src_idx = m, i; break
+        if ref is None: return False
+
+        # เอาออกจากต้นทาง
+        src_list.pop(src_idx)
+
+        # ปลายทาง
+        dest_list = self.lib_data.setdefault(dest_folder, [])
+        if insert_index is None or insert_index < 0 or insert_index > len(dest_list):
+            dest_list.append(ref)
+        else:
+            dest_list.insert(insert_index, ref)
+
+        # รีเฟรช UI
+        self._refresh_tree()
+        # โฟกัสไปยังปลายทาง
+        self._rebuild_cards_for_folder(dest_folder)
+        it = self._tree_index.get(id(ref))
+        if it:
+            self.tree.setCurrentItem(it)
+            self._focus_card_by_id(id(ref))
+        return True
 
     # card callbacks
     def _card_name_live(self, mat_ref, text):
@@ -813,7 +909,6 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             self._warn("Select Objects", str(e))
 
     def _remove_from_other_assets(self, objects, keep_material):
-        """เมื่อ Link ใหม่ ให้ลบชื่อ object ออกจาก material อื่นที่เคยถืออยู่"""
         if not objects: return
         objs = set(objects)
         for folder, mats in self.lib_data.items():
@@ -998,7 +1093,6 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         except Exception as e:
             self._warn("Import failed", str(e)); return
 
-        # choose folder
         folders = list(self.lib_data.keys())
         if not folders:
             dest_folder, ok = QtWidgets.QInputDialog.getText(self, "Destination Folder", "Folder name:", text="Imported")
@@ -1030,13 +1124,6 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             if ch.text(0) == dest_folder:
                 self.tree.setCurrentItem(ch); break
         self._rebuild_cards_for_folder(dest_folder)
-
-        # auto-bind ใกล้ซีนหรือชื่อ material_library.json
-        scene_dir = os.path.dirname(cmds.file(q=True, sn=True)) if cmds and cmds.file(q=True, sn=True) else ""
-        auto_bind = False
-        if scene_dir and os.path.dirname(path) == scene_dir: auto_bind = True
-        if os.path.basename(path).lower() == "material_library.json": auto_bind = True
-        if auto_bind: self._bind_json(path)
 
     # refresh assets every run / on demand
     def refresh_from_scene(self):
