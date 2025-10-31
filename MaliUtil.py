@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-MaliUtil.py — Utilities for Material Library (Maya)
-- รองรับทั้ง PySide6 / PySide2
-- ไม่พึ่ง external packages อื่น
-- ใช้ร่วมกับ MaliUI.py ที่ส่งให้ล่าสุดได้เลย
-"""
 
 try:
     from PySide6 import QtCore, QtGui, QtWidgets
@@ -19,12 +12,8 @@ except Exception:
     cmds = None
 
 
-# =============================================================================
-# Basic material / selection helpers
-# =============================================================================
-
 def selected_materials():
-    """คืนชื่อ material ที่ถูกเลือกอยู่ (unique, ลำดับตามที่ Maya ส่งมา)"""
+    
     if not cmds:
         return []
     mats = cmds.ls(sl=True, materials=True) or []
@@ -36,10 +25,7 @@ def selected_materials():
 
 
 def get_selected_material_name():
-    """คืนชื่อ material จาก selection
-    - ถ้า select วัสดุโดยตรง ให้คืนนั้น
-    - ถ้า select โหนด shader ให้คืนชื่อนั้น
-    """
+    
     if not cmds:
         return ""
     mats = selected_materials()
@@ -61,7 +47,7 @@ def get_selected_material_name():
 
 
 def get_shading_engine(material):
-    """คืนชื่อ shadingEngine ตัวแรกที่ต่อจาก material (ถ้าไม่มีให้คืน None)"""
+    
     if not cmds or not material or not cmds.objExists(material):
         return None
     ses = cmds.listConnections(material, type="shadingEngine") or []
@@ -69,10 +55,7 @@ def get_shading_engine(material):
 
 
 def objects_using_material(material, unique_parents=True):
-    """คืนรายการสมาชิกของ SG ที่ใช้ material
-    - ถ้า unique_parents=True จะคืนเป็น transform ชิ้นละชื่อ ไม่ซ้ำ
-    - ถ้า False จะคืนชื่อสมาชิกตรง ๆ ตามชุด
-    """
+    
     if not cmds:
         return []
     se = get_shading_engine(material)
@@ -94,7 +77,7 @@ def objects_using_material(material, unique_parents=True):
 
 
 def select_objects_from_material(material):
-    """เลือกวัตถุทั้งหมดที่ใช้ material (คืน list รายชื่อที่ถูกเลือก)"""
+    
     if not cmds:
         return []
     objs = objects_using_material(material, unique_parents=True)
@@ -103,9 +86,7 @@ def select_objects_from_material(material):
 
 
 def link_material_to_objects(material, objects=None):
-    """Assign material ให้กับ objects ที่ส่งมา (หรือ selection ปัจจุบันถ้าไม่ส่ง)
-       คืน list รายชื่อ transform ที่ถูก assign
-    """
+    
     if not cmds:
         return []
     if not material or not cmds.objExists(material):
@@ -124,7 +105,7 @@ def link_material_to_objects(material, objects=None):
 
 
 def open_hypershade(material=None):
-    """เปิด Hypershade และเลือก material ถ้ามี"""
+    
     if not cmds:
         return
     cmds.HypershadeWindow()
@@ -136,7 +117,7 @@ def open_hypershade(material=None):
 
 
 def create_material(name, shader="lambert"):
-    """สร้างหรือคืน material + SG (ถ้ามีอยู่แล้วจะคืนของเดิม)"""
+    
     if not cmds:
         return "", ""
     if not name:
@@ -158,7 +139,7 @@ def create_material(name, shader="lambert"):
 
 
 def rename_material(old_name, new_name):
-    """เปลี่ยนชื่อ material (raise error ถ้าไม่พบของเก่า)"""
+    
     if not cmds:
         return new_name
     if not cmds.objExists(old_name):
@@ -168,9 +149,7 @@ def rename_material(old_name, new_name):
     return cmds.rename(old_name, new_name)
 
 
-# =============================================================================
-# Name normalization & viewport selection
-# =============================================================================
+
 
 def _to_transform(name):
     if not cmds or not name or not cmds.objExists(name):
@@ -182,7 +161,7 @@ def _to_transform(name):
 
 
 def normalize_objects(names):
-    """แปลงรายชื่อให้เป็น transform ไม่ซ้ำ"""
+    
     seen, out = set(), []
     for n in names or []:
         t = _to_transform(n)
@@ -192,7 +171,7 @@ def normalize_objects(names):
 
 
 def select_objects_by_names(names):
-    """select objects จากรายชื่อ (normalize ก่อนเลือก)"""
+    
     if not cmds:
         return []
     objs = normalize_objects(names)
@@ -200,12 +179,10 @@ def select_objects_by_names(names):
     return objs
 
 
-# =============================================================================
-# Image helpers (ใช้กับภาพ thumbnail/preview)
-# =============================================================================
+
 
 def qicon_from_b64(b64str):
-    """แปลง base64 เป็น QIcon (ใช้ใน Tree icon)"""
+    
     if not b64str:
         return QtGui.QIcon()
     try:
@@ -217,7 +194,7 @@ def qicon_from_b64(b64str):
 
 
 class ImagePreview(QtWidgets.QLabel):
-    """พรีวิวภาพ 'มุมโค้ง' พร้อมกรอบ ใช้ใน MaterialCard และ Dialog เพิ่ม/แก้รูป"""
+    
     def __init__(self, w=200, h=160, parent=None, radius=90):
         super().__init__(parent)
         self.setMinimumSize(w, h)
@@ -262,7 +239,7 @@ class ImagePreview(QtWidgets.QLabel):
 
 
 def pick_image_to_base64(parent=None):
-    """เปิดไฟล์รูปและคืน base64 + path (รองรับ png/jpg/jpeg/bmp/tif/tiff)"""
+    
     filters = "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)"
     path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, "Choose Image", "", filters)
     if not path:
@@ -272,11 +249,7 @@ def pick_image_to_base64(parent=None):
     return b64, path
 
 
-# =============================================================================
-# Whole material graph snapshot (serialize/deserialize)
-# =============================================================================
-
-# ข้ามแอททริบิวต์ระบบที่ไม่จำเป็น/เซ็ตไม่ได้
+#
 _SKIP_ATTR_PATTERNS = (
     r'^message$', r'^isHistoricallyInteresting$', r'^caching$', r'^blackBox$',
     r'^nodeState$', r'^binMembership$', r'^uuid$', r'^hasBrush$', r'^drawOverride\..*',
@@ -293,7 +266,7 @@ def _safe_list(value):
 
 
 def _all_upstream_nodes(mat):
-    """รวบรวมโหนดทั้งหมดที่อยู่ต้นทางของ material (รวมตัว material เอง)"""
+    
     hist = cmds.listHistory(mat, pruneDagObjects=True, allConnections=True, future=False) or []
     out, seen = [], set()
     for n in hist + [mat]:
@@ -302,7 +275,7 @@ def _all_upstream_nodes(mat):
         seen.add(n)
         try:
             if cmds.objectType(n, isAType="dagNode"):
-                # ข้ามพวก dag node (mesh/transform) ให้อยู่แค่ shader network
+                
                 continue
         except Exception:
             pass
@@ -311,7 +284,7 @@ def _all_upstream_nodes(mat):
 
 
 def _node_attrs_dump(node):
-    """ดึงค่าพร็อพของโหนดที่ settable และไม่ถูกต่ออินพุตอยู่"""
+    
     data = {}
     atts = cmds.listAttr(node, settable=True) or []
     for a in atts:
@@ -320,7 +293,7 @@ def _node_attrs_dump(node):
         plug = f"{node}.{a}"
         try:
             if cmds.connectionInfo(plug, isDestination=True):
-                # ข้ามพอร์ตที่รับค่าจากการต่อสาย
+                
                 continue
             val = cmds.getAttr(plug)
         except Exception:
@@ -332,7 +305,7 @@ def _node_attrs_dump(node):
         except Exception:
             pass
 
-        # จัดรูปแบบค่า 3 ช่อง (double3/float3)
+        
         if payload["type"] in ("double3","float3") and isinstance(payload["value"], list):
             if len(payload["value"]) == 1 and isinstance(payload["value"][0], (list, tuple)):
                 payload["value"] = list(payload["value"][0])
@@ -342,7 +315,7 @@ def _node_attrs_dump(node):
 
 
 def _node_connections_dump(nodes_set):
-    """เก็บรายการการต่อสายที่อยู่ภายในชุดโหนดที่สนใจ"""
+    
     conns = set()
     for n in nodes_set:
         try:
@@ -350,8 +323,7 @@ def _node_connections_dump(nodes_set):
         except Exception:
             continue
         for i in range(0, len(plugs), 2):
-            dstPlug, srcPlug = plugs[i], plugs[i+1]  # Maya คืน [dst, src, dst, src, ...]
-            dstNode = dstPlug.split('.')[0]
+            dstPlug, srcPlug = plugs[i], plugs[i+1]  
             srcNode = srcPlug.split('.')[0]
             if dstNode in nodes_set and srcNode in nodes_set:
                 conns.add((srcPlug, dstPlug))
@@ -359,7 +331,7 @@ def _node_connections_dump(nodes_set):
 
 
 def _collect_file_embeds(node):
-    """ถ้าเป็น file node จะพยายามฝังไฟล์ (base64) + เก็บ colorspace + path"""
+    
     info = {}
     try:
         if cmds.nodeType(node) not in ("file",):
@@ -382,7 +354,7 @@ def _collect_file_embeds(node):
 
 
 def capture_material_network(material):
-    """บันทึก snapshot โครงข่ายวัสดุทั้งชุด (nodes/attrs/connections + ฝังเท็กซ์เจอร์ไฟล์)"""
+    
     if not cmds or not cmds.objExists(material):
         return {}
     nodes = _all_upstream_nodes(material)
@@ -404,7 +376,7 @@ def capture_material_network(material):
 
 
 def _unique_name_like(base):
-    """ตั้งชื่อไม่ชนในซีน โดยเติม _2, _3, ..."""
+    
     i, name = 2, base
     while cmds.objExists(name):
         name = f"{base}_{i}"; i += 1
@@ -412,13 +384,13 @@ def _unique_name_like(base):
 
 
 def _ensure_sourceimages():
-    """หรือตั้งค่าโฟลเดอร์ sourceimages ของโปรเจกต์เพื่อเขียนไฟล์ฝังออกไป"""
+    
     try:
         root = cmds.workspace(q=True, rd=True)
         if not root:
             raise RuntimeError()
     except Exception:
-        # fallback
+        
         root = os.path.expanduser("~/Documents/maya/")
     src = os.path.join(root, "sourceimages")
     os.makedirs(src, exist_ok=True)
@@ -426,7 +398,7 @@ def _ensure_sourceimages():
 
 
 def _write_embed_to_disk(embed):
-    """เขียนไฟล์เท็กซ์เจอร์จาก embed base64 ลงดิสก์เพื่อใช้เป็น fileTextureName"""
+    
     if not embed or not embed.get("b64"):
         return None
     dst_dir = _ensure_sourceimages()
@@ -442,10 +414,7 @@ def _write_embed_to_disk(embed):
 
 
 def rebuild_material_network(snapshot: dict, new_material_name: str = None, namespace: str = "MLI"):
-    """สร้างชุดโหนดใหม่จาก snapshot (คืนชื่อ material ที่สร้าง)
-    - ถ้า new_material_name ถูกส่งมา จะใช้ชื่อนั้นกับ material (กันชนด้วย _2, _3, ...)
-    - อื่น ๆ จะวางชื่อเดิมพร้อมใส่ namespace ป้องกันชน
-    """
+    
     if not cmds or not snapshot:
         return ""
 
@@ -457,19 +426,19 @@ def rebuild_material_network(snapshot: dict, new_material_name: str = None, name
     for old, spec in nodes.items():
         ntype = spec.get("type")
 
-        # วางชื่อ material
+        
         if old == mat_old and new_material_name:
             new = _unique_name_like(new_material_name)
         else:
             base = f"{namespace}_{old}" if cmds.objExists(old) else old
             new = _unique_name_like(base)
 
-        # สร้างโหนด
+        
         try:
             if ntype.endswith("Surface"):
                 created = cmds.shadingNode(ntype, asShader=True, name=new)
             else:
-                # บางโหนดต้อง createNode ถึงจะถูก (เช่น file, place2dTexture)
+                
                 created = cmds.createNode(ntype, name=new)
         except Exception:
             try:
@@ -479,7 +448,7 @@ def rebuild_material_network(snapshot: dict, new_material_name: str = None, name
 
         rename_map[old] = created
 
-    # set attributes กลับ
+ 
     for old, spec in nodes.items():
         new = rename_map.get(old)
         if not new:
@@ -494,7 +463,7 @@ def rebuild_material_network(snapshot: dict, new_material_name: str = None, name
                     cmds.setAttr(plug, val, type="string")
                 elif atype in ("double3", "float3"):
                     if isinstance(val, (list, tuple)) and len(val) == 3:
-                        # หมายเหตุ: สำหรับ float3/double3 ถ้า setAttr ปกติแล้ว error ให้ลอง type="double3"
+                        
                         try:
                             cmds.setAttr(plug, *val, type=atype)
                         except Exception:
@@ -504,7 +473,7 @@ def rebuild_material_network(snapshot: dict, new_material_name: str = None, name
             except Exception:
                 pass
 
-        # restore file node texture
+   
         if spec.get("type") == "file":
             emb = spec.get("embed") or {}
             path = None
@@ -523,7 +492,7 @@ def rebuild_material_network(snapshot: dict, new_material_name: str = None, name
                 except Exception:
                     pass
 
-    # connect attributes
+    
     for c in conns:
         s_old, d_old = c.get("src"), c.get("dst")
         if not s_old or not d_old:
@@ -538,7 +507,7 @@ def rebuild_material_network(snapshot: dict, new_material_name: str = None, name
         except Exception:
             pass
 
-    # ensure SG สำหรับ material ใหม่
+    
     mat_new = rename_map.get(mat_old)
     if mat_new:
         se = get_shading_engine(mat_new)

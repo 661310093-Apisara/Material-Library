@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-# Material Library UI (Maya) — single-file drop-in with central theme control
+
 
 try:
     from PySide6 import QtCore, QtGui, QtWidgets
@@ -16,7 +15,7 @@ try:
 except Exception:
     cmds = None
 
-# -- import MaliUtil ทั้งแบบแพ็กเกจและแบบสคริปต์เดี่ยว --
+
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 if THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
@@ -25,9 +24,7 @@ try:
 except Exception:
     import MaliUtil as mu
 
-# ================================
-# CENTRAL THEME (แก้สี/ฟ้อนต์/มุมโค้ง จากที่เดียว)
-# ================================
+
 THEME = {
     # ---- Global font ----
     "font_family": "SF Pro Display",
@@ -185,18 +182,17 @@ def apply_theme(widget: QtWidgets.QWidget):
     widget.setFont(f)
     widget.setStyleSheet(build_stylesheet(THEME))
 
-# ================================
+
 # Constants / sizing
-# ================================
+
 DEFAULT_SIZE    = QtCore.QSize(780, 500)
 LEFT_PANEL_W    = 100
 TREE_ICON_SIZE  = QtCore.QSize(28, 28)
 PREVIEW_W       = 150
 PREVIEW_H       = 150
 
-# ================================
 # JSON path policy (per-scene)
-# ================================
+
 def _scene_json_path():
     try:
         sn = cmds.file(q=True, sn=True) if cmds else ""
@@ -223,9 +219,9 @@ def _qicon_from_b64(b64str: str) -> QtGui.QIcon:
     except Exception:
         return QtGui.QIcon()
 
-# =========================
+
 # Dialog: Add Material
-# =========================
+
 class MaterialPropDialog(QtWidgets.QDialog):
     def __init__(self, parent=None, initial=None, title="Add Material"):
         super().__init__(parent)
@@ -297,16 +293,14 @@ class MaterialPropDialog(QtWidgets.QDialog):
             "assets": list(self.data.get("assets", [])),
         }
 
-# =================
+
 # Material Card
-# =================
 class MaterialCard(QtWidgets.QFrame):
     nameEditedLive = QtCore.Signal(object, str)
     nameCommitted  = QtCore.Signal(object, str)
     requestEdit    = QtCore.Signal(object)
     requestSelect  = QtCore.Signal(object)
     requestLink    = QtCore.Signal(object)
-    # --- เพิ่มสัญญาณ: รูป thumb เปลี่ยน ---
     thumbChanged   = QtCore.Signal(object)
 
     def __init__(self, mat_ref: dict, parent=None):
@@ -400,7 +394,6 @@ class MaterialCard(QtWidgets.QFrame):
         if not b64: return
         self.mat["thumb_b64"] = b64
         if hasattr(self.preview, "set_image_b64"): self.preview.set_image_b64(b64)
-        # --- แจ้งไปให้ฝั่ง Tree อัปเดตไอคอนทันที ---
         self.thumbChanged.emit(self.mat)
 
     def _asset_del(self):
@@ -455,16 +448,15 @@ class MaterialCard(QtWidgets.QFrame):
             self.preview.set_image_b64(self.mat.get("thumb_b64",""))
         self._populate_assets()
 
-# =================
+
 # MaterialTree (Drag & Drop controller)
-# =================
+
 class MaterialTree(QtWidgets.QTreeWidget):
     MIME = "application/x-mli-material"
 
     def __init__(self, owner_dialog, *a, **kw):
         super().__init__(*a, **kw)
         self._dlg = owner_dialog
-        # เปิด drag/drop แต่ไม่ใช้ InternalMove
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
         self.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop)
@@ -528,10 +520,10 @@ class MaterialTree(QtWidgets.QTreeWidget):
         dest_kind = dest_item.data(0, self._dlg.KIND_ROLE)
         if dest_kind == self._dlg.KIND_FOLDER:
             dest_folder = dest_item.text(0)
-            insert_index = None   # append ท้ายโฟลเดอร์
+            insert_index = None
         elif dest_kind == self._dlg.KIND_MAT:
             dest_folder = dest_item.parent().text(0)
-            insert_index = dest_item.parent().indexOfChild(dest_item)  # แทรกก่อนปลายทาง
+            insert_index = dest_item.parent().indexOfChild(dest_item)
         else:
             e.ignore(); return
 
@@ -547,9 +539,9 @@ class MaterialTree(QtWidgets.QTreeWidget):
         else:
             e.ignore()
 
-# ==============
+
 # Main Dialog
-# ==============
+
 class MaterialLibraryDialog(QtWidgets.QDialog):
     KIND_ROLE   = QtCore.Qt.UserRole
     KIND_ROOT   = "root"
@@ -566,7 +558,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         self.resize(DEFAULT_SIZE)
         self.setMinimumSize(780, 500)
 
-        self.lib_data = {}               # { folder: [ {name, thumb_b64, assets, graph?}, ... ] }
+        self.lib_data = {}          
         self.folder_counter = 1
         self.current_folder = None
         self._tree_index, self._card_index = {}, {}
@@ -576,7 +568,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         # left panel
         left = QtWidgets.QWidget(); left.setObjectName("LeftPanel")
         left_l = QtWidgets.QVBoxLayout(left); left_l.setContentsMargins(6,6,6,6)
-        self.tree = MaterialTree(self)                   # <--- ใช้ MaterialTree
+        self.tree = MaterialTree(self)   
         self.tree.setHeaderHidden(True)
         self.tree.setIndentation(16); self.tree.setIconSize(TREE_ICON_SIZE)
         left_l.addWidget(self.tree)
@@ -642,7 +634,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
 
         apply_theme(self)
 
-    # ---------------- binding helpers ----------------
+   
     def _get_bound_json_path(self):
         try:
             vals = cmds.fileInfo(self._FILEINFO_KEY, q=True) or []
@@ -711,7 +703,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         except Exception:
             pass
 
-    # ---------------- helpers ----------------
+ 
     def _warn(self, title, msg):
         QtWidgets.QMessageBox.warning(self, title, msg)
 
@@ -758,15 +750,14 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
         if not self._sized_once:
             self.resize(DEFAULT_SIZE); self._sized_once = True
 
-    # --- อัปเดตรูปไอคอนใน Tree ทันทีเมื่อพรีวิวเปลี่ยน ---
     def _on_card_thumb_changed(self, mat_ref: dict):
-        """อัปเดตไอคอนของ material ในฝั่ง Tree ทันทีเมื่อรูปพรีวิวถูกแก้"""
+        
         try:
             item = self._tree_index.get(id(mat_ref))
             if not item:
                 return
             item.setIcon(0, self._material_icon(mat_ref))
-            # บังคับวาดใหม่ให้เห็นผลทันที
+            
             self.tree.viewport().update()
         except Exception:
             pass
@@ -816,7 +807,6 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             card.requestEdit.connect(self._card_edit_material)
             card.requestSelect.connect(self._card_select_objs)
             card.requestLink.connect(self._card_link_material)
-            # --- ผูกสัญญาณรูปเปลี่ยนกับตัวอัปเดต Tree ---
             card.thumbChanged.connect(lambda mm, self=self: self._on_card_thumb_changed(mm))
 
             self.cards_layout.addWidget(card)
@@ -826,7 +816,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
 
     # -------- Drag/Drop backend --------
     def _move_material_between_folders(self, mat_id: int, src_folder: str, dest_folder: str, insert_index=None) -> bool:
-        """ย้ายหรือจัดลำดับ material ใน lib_data แล้วรีเฟรช UI ทันที"""
+        
         if not src_folder or not dest_folder: return False
         src_list = self.lib_data.get(src_folder, [])
         if not src_list: return False
@@ -837,19 +827,19 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
                 ref, src_idx = m, i; break
         if ref is None: return False
 
-        # เอาออกจากต้นทาง
+        
         src_list.pop(src_idx)
 
-        # ปลายทาง
+        
         dest_list = self.lib_data.setdefault(dest_folder, [])
         if insert_index is None or insert_index < 0 or insert_index > len(dest_list):
             dest_list.append(ref)
         else:
             dest_list.insert(insert_index, ref)
 
-        # รีเฟรช UI
+        
         self._refresh_tree()
-        # โฟกัสไปยังปลายทาง
+        
         self._rebuild_cards_for_folder(dest_folder)
         it = self._tree_index.get(id(ref))
         if it:
@@ -1125,7 +1115,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
                 self.tree.setCurrentItem(ch); break
         self._rebuild_cards_for_folder(dest_folder)
 
-    # refresh assets every run / on demand
+   
     def refresh_from_scene(self):
         changed = False
         for mats in self.lib_data.values():
@@ -1166,7 +1156,7 @@ class MaterialLibraryDialog(QtWidgets.QDialog):
             pass
         super().closeEvent(e)
 
-# ---------- launcher ----------
+
 def run():
     global ui
     try:
